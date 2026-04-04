@@ -212,7 +212,7 @@ export const menuConfig = {
       },
       {
         name: 'Doctor Verification',
-        href: '/admin/verifications',
+        href: '/admin/doctors/verification',
         icon: Shield,
         badge: 'pending',
         permissions: ['admin', 'superadmin']

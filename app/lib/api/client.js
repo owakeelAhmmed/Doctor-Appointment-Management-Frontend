@@ -30,6 +30,8 @@ export const patientAPI = {
   removeFavorite: (doctorId) => axiosInstance.delete(`/patient/favorites/${doctorId}`),
   getFavorites: () => axiosInstance.get('/patient/favorites'),
   getDashboard: () => axiosInstance.get('/patient/dashboard'),
+  getPrescriptions: (params) => axiosInstance.get('/patient/prescriptions', { params }),
+  downloadPrescription: (prescriptionId) => axiosInstance.get(`/patient/prescriptions/${prescriptionId}/download`),
 }
 
 // Doctor API
@@ -53,9 +55,12 @@ export const doctorAPI = {
 export const adminAPI = {
   getDashboard: () => axiosInstance.get('/admin/dashboard'),
   getUsers: (params) => axiosInstance.get('/admin/users', { params }),
+  getUserDetails: (userId) => axiosInstance.get(`/admin/users/${userId}`),
   updateUserStatus: (userId, data) => axiosInstance.put(`/admin/users/${userId}/status`, data),
+  updateUserRole: (userId, data) => axiosInstance.put(`/admin/users/${userId}/role`, data),
   getDoctorVerifications: (params) => axiosInstance.get('/admin/doctors/verification', { params }),
   verifyDoctor: (doctorId, data) => axiosInstance.put(`/admin/doctors/${doctorId}/verify`, data),
+  verifyDocument: (doctorId, documentType, data) => axiosInstance.put(`/admin/doctors/${doctorId}/documents/${documentType}/verify`, data),
   getAllAppointments: (params) => axiosInstance.get('/admin/appointments', { params }),
   getAllPayments: (params) => axiosInstance.get('/admin/payments', { params }),
   processWithdrawal: (withdrawalId, data) => axiosInstance.post(`/admin/withdrawals/${withdrawalId}/process`, data),
