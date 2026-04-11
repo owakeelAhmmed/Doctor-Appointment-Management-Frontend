@@ -5,10 +5,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
-import { 
-  User, Mail, Lock, Eye, EyeOff, 
-  Sparkles, Heart, Shield, CheckCircle, Fingerprint, 
-  AlertCircle, Stethoscope, UserPlus, 
+import {
+  User, Mail, Lock, Eye, EyeOff,
+  Sparkles, Heart, Shield, CheckCircle, Fingerprint,
+  AlertCircle, Stethoscope, UserPlus,
   Smartphone,
   FileText
 } from 'lucide-react'
@@ -68,7 +68,7 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true)
-    
+
     try {
       const payload = {
         fullName: data.fullName,
@@ -84,26 +84,52 @@ export default function RegisterPage() {
         payload.bmdcRegNo = data.bmdcRegNo
       }
 
+      console.log('Sending payload:', payload)
+
+      // Now response is full axios response object
       const response = await axiosInstance.post('/auth/register', payload)
 
-      if (response.data?.success) {
-        setRegisteredEmail(data.email)
-        setRegisteredUserType(userType)
-        setRegisteredUserId(response.data.data?.userId)
+      console.log('Full response:', response)
+      console.log('Response data:', response.data)
+
+      // Check response properly
+      if (response.data?.success === true) {
+        const responseData = response.data.data || {}
+
+        setRegisteredEmail(responseData.email || data.email)
+        setRegisteredUserType(responseData.role || userType)
+        setRegisteredUserId(responseData.userId)
+
+        // Show OTP form
         setShowOTPInput(true)
-        
+
         if (userType === 'doctor') {
-          showToast.success('Registration successful!', {
+          showToast.success('Doctor registration successful!', {
             description: 'Please verify your email to continue.'
           })
         } else {
-          showToast.success('Verification code sent to your email!')
+          showToast.success('Registration successful! Verification code sent to your email.')
         }
+
+      } else {
+        // Handle case where success is false or missing
+        const errorMsg = response.data?.message || 'Registration failed'
+        showToast.error(errorMsg)
       }
+
     } catch (error) {
       console.error('Registration error:', error)
-      const errorMessage = error.response?.data?.message || 'Registration failed'
+
+      let errorMessage = 'Registration failed'
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
       showToast.error(errorMessage)
+
     } finally {
       setIsLoading(false)
     }
@@ -124,16 +150,30 @@ export default function RegisterPage() {
         otp: otpCode
       })
 
+      console.log('OTP verification response:', response)
+
       if (response.data?.success) {
-        showToast.success('Email verified successfully!', {
-          description: 'Your email has been verified. Please login to continue.'
-        })
-        
-        setTimeout(() => {
-          router.push('/login')
-        }, 2000)
+        showToast.success('Email verified successfully!')
+
+        if (registeredUserType === 'doctor') {
+          showToast.info('Please login to complete your profile', {
+            description: 'You need to login first to complete your doctor profile.'
+          })
+
+          // Option 1: Go to login with redirect parameter
+          setTimeout(() => {
+            router.push(`/login?redirect=/doctor/complete-profile&email=${encodeURIComponent(registeredEmail)}`)
+          }, 2000)
+
+        } else {
+          // Patient goes to login
+          setTimeout(() => {
+            router.push('/login')
+          }, 2000)
+        }
+
       } else {
-        showToast.error(response.data?.message || 'Invalid OTP. Please try again.')
+        showToast.error(response.data?.message || 'Invalid OTP')
       }
     } catch (error) {
       console.error('OTP verification error:', error)
@@ -146,7 +186,7 @@ export default function RegisterPage() {
   // Resend OTP
   const handleResendOTP = async () => {
     setIsLoading(true)
-    
+
     try {
       const response = await axiosInstance.post('/auth/resend-otp', {
         identifier: registeredEmail,
@@ -192,7 +232,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 overflow-hidden relative py-8">
-      
+
       <AnimatedBackground />
 
       <motion.div
@@ -211,14 +251,14 @@ export default function RegisterPage() {
           >
             <Fingerprint className="w-10 h-10 text-white" />
           </motion.div>
-          
+
           <motion.h1 className="text-3xl font-bold text-white mb-1">
             {!showOTPInput ? 'Create Account' : 'Verify Your Email'}
           </motion.h1>
-          
+
           <motion.p className="text-white/70 text-sm">
-            {!showOTPInput 
-              ? 'Join thousands of patients and doctors' 
+            {!showOTPInput
+              ? 'Join thousands of patients and doctors'
               : `We've sent a verification code to ${registeredEmail}`}
           </motion.p>
         </motion.div>
@@ -233,7 +273,7 @@ export default function RegisterPage() {
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
           >
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border border-white/20">
-              
+
               {/* User Type Toggle Buttons */}
               <motion.div variants={itemVariants} className="flex gap-3 mb-6">
                 <button
@@ -241,8 +281,8 @@ export default function RegisterPage() {
                   onClick={() => setUserType('patient')}
                   className={`
                     flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all duration-300
-                    ${userType === 'patient' 
-                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg' 
+                    ${userType === 'patient'
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
                       : 'bg-white/10 text-white/60 hover:bg-white/20 border border-white/20'}
                   `}
                 >
@@ -254,8 +294,8 @@ export default function RegisterPage() {
                   onClick={() => setUserType('doctor')}
                   className={`
                     flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-all duration-300
-                    ${userType === 'doctor' 
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' 
+                    ${userType === 'doctor'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                       : 'bg-white/10 text-white/60 hover:bg-white/20 border border-white/20'}
                   `}
                 >
@@ -266,7 +306,7 @@ export default function RegisterPage() {
 
               {/* Info Banner for Doctor Registration */}
               {userType === 'doctor' && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="mb-6 p-3 bg-blue-500/20 border border-blue-500/30 rounded-xl"
@@ -286,7 +326,7 @@ export default function RegisterPage() {
               )}
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                
+
                 {/* Common Fields */}
                 <div className="space-y-4">
                   {/* Full Name */}
@@ -299,7 +339,7 @@ export default function RegisterPage() {
                       <input
                         type="text"
                         placeholder="John Doe"
-                        {...register('fullName', { 
+                        {...register('fullName', {
                           required: 'Full name is required',
                           minLength: {
                             value: 3,
@@ -327,7 +367,7 @@ export default function RegisterPage() {
                       <input
                         type="email"
                         placeholder="you@example.com"
-                        {...register('email', { 
+                        {...register('email', {
                           required: 'Email is required',
                           pattern: {
                             value: /^\S+@\S+\.\S+$/,
@@ -355,7 +395,7 @@ export default function RegisterPage() {
                       <input
                         type="tel"
                         placeholder="017XXXXXXXX"
-                        {...register('phone', { 
+                        {...register('phone', {
                           required: 'Phone number is required',
                           pattern: {
                             value: /^01[3-9]\d{8}$/,
@@ -383,7 +423,7 @@ export default function RegisterPage() {
                       <input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
-                        {...register('password', { 
+                        {...register('password', {
                           required: 'Password is required',
                           minLength: {
                             value: 8,
@@ -400,9 +440,9 @@ export default function RegisterPage() {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    
+
                     <PasswordStrengthMeter password={password} />
-                    
+
                     {errors.password && (
                       <p className="mt-1 text-xs text-pink-300 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
@@ -421,7 +461,7 @@ export default function RegisterPage() {
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
                         placeholder="••••••••"
-                        {...register('confirmPassword', { 
+                        {...register('confirmPassword', {
                           required: 'Please confirm your password',
                           validate: value => value === password || 'Passwords do not match'
                         })}
@@ -483,8 +523,8 @@ export default function RegisterPage() {
                             <input
                               type="text"
                               placeholder="BMDC-XXXXX"
-                              {...register('bmdcRegNo', { 
-                                required: userType === 'doctor' ? 'BMDC registration number is required' : false 
+                              {...register('bmdcRegNo', {
+                                required: userType === 'doctor' ? 'BMDC registration number is required' : false
                               })}
                               className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all text-sm"
                             />
@@ -534,13 +574,13 @@ export default function RegisterPage() {
                 </motion.div>
 
                 {/* Login Link */}
-                <motion.p 
+                <motion.p
                   variants={itemVariants}
                   className="text-center text-white/70 text-sm"
                 >
                   Already have an account?{' '}
-                  <Link 
-                    href="/login" 
+                  <Link
+                    href="/login"
                     className="text-pink-400 hover:text-pink-300 font-medium transition-colors cursor-pointer"
                   >
                     Sign in
@@ -558,7 +598,7 @@ export default function RegisterPage() {
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
           >
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-white/20 text-center">
-              
+
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -567,16 +607,16 @@ export default function RegisterPage() {
               >
                 <Mail className="w-10 h-10 text-white" />
               </motion.div>
-              
-              <motion.h3 
+
+              <motion.h3
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 className="text-2xl font-bold text-white mb-2"
               >
                 Verify Your Email
               </motion.h3>
-              
-              <motion.p 
+
+              <motion.p
                 initial={{ y: -10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.1 }}
@@ -585,9 +625,9 @@ export default function RegisterPage() {
                 We've sent a 6-digit verification code to <br />
                 <span className="text-white font-semibold">{registeredEmail}</span>
               </motion.p>
-              
+
               {/* OTP Input */}
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2 }}
@@ -603,7 +643,7 @@ export default function RegisterPage() {
                   autoFocus
                 />
               </motion.div>
-              
+
               {/* Verify Button */}
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
@@ -618,9 +658,9 @@ export default function RegisterPage() {
                   Verify & Continue
                 </Button>
               </motion.div>
-              
+
               {/* Resend Link */}
-              <motion.p 
+              <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
@@ -635,7 +675,7 @@ export default function RegisterPage() {
                   {isLoading ? 'Sending...' : 'Resend'}
                 </button>
               </motion.p>
-              
+
               {/* Back to Register */}
               <button
                 onClick={handleBackToRegister}
@@ -648,7 +688,7 @@ export default function RegisterPage() {
         )}
 
         {/* Trust Badges */}
-        <motion.div 
+        <motion.div
           variants={itemVariants}
           className="mt-4 flex justify-center gap-4 text-white/40 text-xs"
         >

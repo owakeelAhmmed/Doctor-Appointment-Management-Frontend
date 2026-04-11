@@ -13,26 +13,33 @@ const axiosInstance = axios.create({
   withCredentials: true
 })
 
+// Request interceptor
 axiosInstance.interceptors.request.use(
   async (config) => {
     try {
       const session = await getSession()
-
       if (session?.user?.token) {
         config.headers.Authorization = `Bearer ${session.user.token}`
+      }
+      
+      // Also check localStorage for token
+      const localToken = localStorage.getItem('token')
+      if (localToken && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${localToken}`
       }
     } catch (error) {
       console.error('Session fetch error:', error)
     }
-
     return config
   },
   (error) => Promise.reject(error)
 )
 
+// Response interceptor - FIXED: Return full response
 axiosInstance.interceptors.response.use(
   (response) => {
-    return response.data
+    // Return full response object, not just response.data
+    return response
   },
   (error) => {
     if (!error.response) {
@@ -47,25 +54,20 @@ axiosInstance.interceptors.response.use(
       case 400:
         showToast.error(message)
         break
-
       case 401:
         showToast.error('Session expired. Please login again.')
-
         if (typeof window !== 'undefined') {
           setTimeout(() => {
             window.location.href = '/login'
           }, 1500)
         }
         break
-
       case 403:
         showToast.error('You do not have permission')
         break
-
       case 404:
         showToast.error('Resource not found')
         break
-
       default:
         showToast.error(message)
     }

@@ -19,14 +19,22 @@ const handler = NextAuth({
             password: credentials.password,
           });
 
+          console.log("Login API response:", res.data);
+
           if (res.data.success && res.data.data) {
             const { user, token } = res.data.data;
+            
+            // Return complete user object with role and verification status
             return {
               id: user.id,
               email: user.email,
               name: user.fullName,
               role: user.role,
               token: token,
+              verificationStatus: user.verificationStatus,
+              needsProfileCompletion: user.needsProfileCompletion,
+              needsDocumentSubmission: user.needsDocumentSubmission,
+              isVerified: user.isVerified
             };
           }
           return null;
@@ -45,6 +53,10 @@ const handler = NextAuth({
         token.token = user.token;
         token.email = user.email;
         token.name = user.name;
+        token.verificationStatus = user.verificationStatus;
+        token.needsProfileCompletion = user.needsProfileCompletion;
+        token.needsDocumentSubmission = user.needsDocumentSubmission;
+        token.isVerified = user.isVerified;
       }
       return token;
     },
@@ -55,6 +67,10 @@ const handler = NextAuth({
         name: token.name,
         role: token.role,
         token: token.token,
+        verificationStatus: token.verificationStatus,
+        needsProfileCompletion: token.needsProfileCompletion,
+        needsDocumentSubmission: token.needsDocumentSubmission,
+        isVerified: token.isVerified
       };
       return session;
     },
