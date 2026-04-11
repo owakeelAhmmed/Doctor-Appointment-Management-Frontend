@@ -38,16 +38,50 @@ export const patientAPI = {
 export const doctorAPI = {
   getProfile: () => axiosInstance.get('/doctor/profile'),
   updateProfile: (data) => axiosInstance.put('/doctor/profile', data),
+  
+  // Document Upload
+  uploadDocuments: (formData) => axiosInstance.post('/doctor/documents', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  
+  // Verification
+  getVerificationStatus: () => axiosInstance.get('/doctor/verification-status'),
+  getCompleteProfile: () => axiosInstance.get('/doctor/complete-profile'),
+  submitCompleteProfile: (data) => axiosInstance.post('/doctor/complete-profile', data),
+  
+  // Schedule & Fee
   updateSchedule: (data) => axiosInstance.put('/doctor/schedule', data),
   updateFee: (fee) => axiosInstance.put('/doctor/fee', { consultationFee: fee }),
+  
+  // Banking
+  updateBankInfo: (data) => axiosInstance.put('/doctor/bank-info', data),
+  updateMobileBanking: (data) => axiosInstance.put('/doctor/mobile-banking', data),
+  
+  // Appointments
   getAppointments: (params) => axiosInstance.get('/doctor/appointments', { params }),
   getTodaySchedule: () => axiosInstance.get('/doctor/appointments/today'),
-  updateAppointmentStatus: (appointmentId, status) => 
-    axiosInstance.put(`/doctor/appointments/${appointmentId}/status`, { status }),
+  updateAppointmentStatus: (appointmentId, status, notes) => 
+    axiosInstance.put(`/doctor/appointments/${appointmentId}/status`, { status, notes }),
+  getAppointmentDetails: (appointmentId) => 
+    axiosInstance.get(`/doctor/appointments/${appointmentId}`),
+  
+  // Patients
   getPatients: (params) => axiosInstance.get('/doctor/patients', { params }),
   getPatientDetails: (patientId) => axiosInstance.get(`/doctor/patients/${patientId}`),
+  
+  // Reviews
+  getReviews: (params) => axiosInstance.get('/doctor/reviews', { params }),
+  respondToReview: (reviewId, comment) => 
+    axiosInstance.post(`/doctor/reviews/${reviewId}/respond`, { comment }),
+  
+  // Earnings & Withdrawals
   getEarnings: (params) => axiosInstance.get('/doctor/earnings', { params }),
   requestWithdrawal: (data) => axiosInstance.post('/doctor/withdrawals', data),
+  getWithdrawalHistory: () => axiosInstance.get('/doctor/withdrawals'),
+  
+  // Dashboard
   getDashboard: () => axiosInstance.get('/doctor/dashboard'),
 }
 
@@ -70,9 +104,35 @@ export const adminAPI = {
   updateSettings: (data) => axiosInstance.put('/admin/settings', data),
 }
 
+
+export const publicAPI = {
+  // Get all doctors with filters
+  getDoctors: (params) => {
+    return axiosInstance.get('/doctors/public', { params })
+  },
+  
+  // Get filter options (specializations and cities)
+  getFilters: () => {
+    return axiosInstance.get('/doctors/public/filters')
+  },
+  
+  // Get single doctor details
+  getDoctorDetails: (doctorId) => {
+    return axiosInstance.get(`/doctors/public/${doctorId}`)
+  },
+  
+  // Get doctor's available slots
+  getDoctorSlots: (doctorId, date) => {
+    return axiosInstance.get(`/doctors/public/${doctorId}/slots`, { 
+      params: { date } 
+    })
+  },
+}
+
 export default {
   auth: authAPI,
   patient: patientAPI,
   doctor: doctorAPI,
+  public: publicAPI,
   admin: adminAPI,
 }

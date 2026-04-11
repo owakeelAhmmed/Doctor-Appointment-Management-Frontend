@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
@@ -8,101 +8,284 @@ import {
   Calendar, Clock, User, DollarSign, Star, TrendingUp,
   Users, Activity, CheckCircle, AlertCircle, FileCheck,
   Upload, Shield, Award, Building, Phone, Mail, MapPin,
-  Lock, AlertTriangle
+  Lock, AlertTriangle, Send, Clock as ClockIcon, CheckCircle2,
+  FileText, UserCheck, Briefcase, RefreshCw
 } from 'lucide-react'
 import { doctorAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
 
 export default function DoctorDashboard() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, update: updateSession } = useSession()
   const [dashboardData, setDashboardData] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [doctorStatus, setDoctorStatus] = useState(null)
   const [verificationInfo, setVerificationInfo] = useState(null)
 
-  useEffect(() => {
-    checkDoctorStatus()
+  const loadDashboard = useCallback(async () => {
+    try {
+      const response = await doctorAPI.getDashboard()
+      if (response?.success || response?.data?.success) {
+        const data = response.data || response
+        setDashboardData(data)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Dashboard error:', error)
+      if (error.response?.status === 403) {
+        setDashboardData(null)
+      }
+      return false
+    }
   }, [])
 
-  const checkDoctorStatus = async () => {
+  const checkDoctorStatus = useCallback(async () => {
     setIsLoading(true)
     try {
-      // First get verification status
+      // Get verification status
       const statusResponse = await doctorAPI.getVerificationStatus()
-      const statusData = statusResponse.data?.data
+      const statusData = statusResponse?.data?.data || statusResponse?.data
       setVerificationInfo(statusData)
       
-      const verificationStatus = statusData?.verificationStatus
+      const verificationStatus = statusData?.verificationStatus || 'pending'
       const isVerified = verificationStatus === 'verified'
+      const isProfileSubmitted = verificationStatus === 'profile_submitted'
+      const isDocumentSubmitted = verificationStatus === 'document_verification'
+      const isUnderReview = verificationStatus === 'under_review'
       
       setDoctorStatus({ 
         status: verificationStatus, 
         isVerified,
-        requiredSteps: statusData?.requiredSteps || []
+        isProfileSubmitted,
+        isDocumentSubmitted,
+        isUnderReview,
+        requiredSteps: statusData?.requiredSteps || [],
+        profileCompletionPercentage: statusData?.profileCompletionPercentage || 0
       })
       
       // If verified, load full dashboard
       if (isVerified) {
         await loadDashboard()
       } else {
-        // Show limited dashboard with verification pending info
         setDashboardData(null)
       }
       
     } catch (error) {
       console.error('Error checking doctor status:', error)
-      showToast.error('Failed to load profile')
+      // If error, assume not verified
+      setDoctorStatus({ 
+        status: 'pending', 
+        isVerified: false,
+        isProfileSubmitted: false,
+        isDocumentSubmitted: false,
+        isUnderReview: false
+      })
+      setDashboardData(null)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [loadDashboard])
 
-  const loadDashboard = async () => {
-    try {
-      const response = await doctorAPI.getDashboard()
-      if (response.success) {
-        setDashboardData(response.data)
-      }
-    } catch (error) {
-      console.error('Dashboard error:', error)
-      // If error (403), means not verified - just show pending UI
-      if (error.response?.status === 403) {
-        setDashboardData(null)
-      } else {
-        setDashboardData({
-          stats: {
-            totalPatients: 0,
-            totalEarnings: 0,
-            averageRating: 0,
-            totalReviews: 0,
-            todayAppointments: 0,
-            pendingAppointments: 0,
-            monthEarnings: 0
-          },
-          upcomingAppointments: [],
-          recentPatients: []
-        })
-      }
-    }
-  }
+  useEffect(() => {
+    checkDoctorStatus()
+  }, [checkDoctorStatus])
 
   const formatCurrency = (amount) => {
+    if (!amount) return '৳0'
     return new Intl.NumberFormat('bn-BD', { style: 'currency', currency: 'BDT' }).format(amount)
   }
 
-  // Pending Verification UI - Limited Access
-  if (!doctorStatus?.isVerified) {
+  // Loading State
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+        <p className="text-gray-500">Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  // If doctor is verified but dashboard data is still loading
+  if (doctorStatus?.isVerified && !dashboardData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+        <p className="text-gray-500">Loading your dashboard...</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50"
+        >
+          <RefreshCw className="w-4 h-4 inline mr-2" />
+          Refresh
+        </button>
+      </div>
+    )
+  }
+
+  // Show Profile Submitted Success Message
+  if (doctorStatus?.isProfileSubmitted && !doctorStatus?.isVerified && !doctorStatus?.isDocumentSubmitted) {
     return (
       <div className="space-y-6">
         {/* Welcome Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName}
+            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+          </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <Send className="w-4 h-4 text-green-600" />
+            <span className="text-sm text-green-600 font-medium">Profile Submitted Successfully!</span>
+          </div>
+        </div>
+
+        {/* Success Message Card */}
+        <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="w-7 h-7 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-green-800">Profile Submitted Successfully!</h2>
+              <p className="text-green-700 mt-1">
+                Your doctor profile has been submitted. Now please upload your verification documents to complete the process.
+              </p>
+              <div className="mt-4 bg-white rounded-lg p-4">
+                <h3 className="font-semibold text-gray-800 mb-2">📋 Next Steps:</h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-gray-700">✅ Basic information completed</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center">
+                      <span className="text-[10px] text-white">2</span>
+                    </div>
+                    <span className="text-gray-700">📄 Upload verification documents</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center">
+                      <span className="text-[10px] text-white">3</span>
+                    </div>
+                    <span className="text-gray-500">⏳ Wait for admin verification</span>
+                  </li>
+                </ul>
+              </div>
+              <button
+                onClick={() => router.push('/doctor/documents')}
+                className="mt-4 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Upload Documents Now
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <div className="flex items-start gap-3">
+            <ClockIcon className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-blue-800">What happens next?</h3>
+              <p className="text-sm text-blue-700 mt-1">
+                After you upload your documents, our admin team will review your application.
+                You will receive an email notification once your account is verified.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Document Under Review / Waiting for Admin
+  if ((doctorStatus?.isDocumentSubmitted || doctorStatus?.isUnderReview) && !doctorStatus?.isVerified) {
+    return (
+      <div className="space-y-6">
+        {/* Welcome Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+          </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <ClockIcon className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-600 font-medium">Under Review</span>
+          </div>
+        </div>
+
+        {/* Waiting for Admin Card */}
+        <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
+              <Shield className="w-7 h-7 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-blue-800">Application Under Review</h2>
+              <p className="text-blue-700 mt-1">
+                Your documents have been submitted successfully! Our admin team is now reviewing your application.
+              </p>
+              <div className="mt-4 bg-white rounded-lg p-4">
+                <h3 className="font-semibold text-gray-800 mb-3">📊 Verification Progress:</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-sm text-gray-600">Profile Information</span>
+                    </div>
+                    <span className="text-xs text-green-600">Completed</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-sm text-gray-600">Documents Uploaded</span>
+                    </div>
+                    <span className="text-xs text-green-600">Completed</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-blue-500 animate-pulse" />
+                      <span className="text-sm text-blue-600 font-medium">Admin Verification</span>
+                    </div>
+                    <span className="text-xs text-blue-600">In Progress</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm text-blue-700">
+                <ClockIcon className="w-4 h-4" />
+                <span>Estimated time: 24-48 hours</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-yellow-800">What happens next?</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Our admin team will verify your documents. You will receive an email notification once verified.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Pending Verification UI - Profile not submitted yet
+  if (!doctorStatus?.isProfileSubmitted && !doctorStatus?.isDocumentSubmitted && !doctorStatus?.isVerified) {
+    return (
+      <div className="space-y-6">
+        {/* Welcome Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <AlertTriangle className="w-4 h-4 text-yellow-600" />
-            <span className="text-sm text-yellow-600 font-medium">Account Pending Verification</span>
+            <span className="text-sm text-yellow-600 font-medium">Profile Incomplete</span>
           </div>
         </div>
 
@@ -113,92 +296,51 @@ export default function DoctorDashboard() {
               <Shield className="w-6 h-6 text-yellow-600" />
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">Complete Your Verification</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Complete Your Profile</h2>
               <p className="text-gray-600 text-sm mt-1">
-                Please complete the following steps to activate your account. 
-                You will get full access to appointments, patients, and earnings after verification.
+                Please complete your doctor profile to start the verification process.
               </p>
               
               <div className="mt-4 space-y-2">
-                {verificationInfo?.requiredSteps?.map((step, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    {step.completed ? (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    ) : step.required ? (
-                      <div className="w-5 h-5 rounded-full border-2 border-yellow-500 animate-pulse" />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-                    )}
-                    <span className={`text-sm ${step.completed ? 'text-gray-600' : 'text-yellow-600 font-medium'}`}>
-                      {step.step}
-                    </span>
-                    {!step.completed && step.required && (
-                      <button
-                        onClick={() => {
-                          if (step.step === 'Professional Details') {
-                            router.push('/doctor/complete-profile')
-                          } else if (step.step === 'Document Upload') {
-                            router.push('/doctor/documents')
-                          }
-                        }}
-                        className="ml-auto text-xs text-primary-600 hover:text-primary-700"
-                      >
-                        Complete Now →
-                      </button>
-                    )}
-                  </div>
-                ))}
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span className="text-sm text-gray-600">Basic Registration</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span className="text-sm text-gray-600">Email Verification</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-yellow-500 animate-pulse" />
+                  <span className="text-sm text-yellow-600 font-medium">Professional Details (Required)</span>
+                  <button
+                    onClick={() => router.push('/doctor/complete-profile')}
+                    className="ml-auto text-xs text-green-600 hover:text-green-700"
+                  >
+                    Complete Now →
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
+                  <span className="text-sm text-gray-400">Document Upload</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Limited Access Notice */}
-        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-          <div className="flex items-start gap-3">
-            <Lock className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-blue-800">Limited Access Mode</h3>
-              <p className="text-sm text-blue-700 mt-1">
-                While your account is pending verification, you can only:
-              </p>
-              <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
-                <li>Complete your profile information</li>
-                <li>Upload verification documents</li>
-                <li>Check verification status</li>
-              </ul>
-              <p className="text-sm text-blue-700 mt-2">
-                After verification, you will have full access to manage appointments, patients, and earnings.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions - Only Profile and Documents */}
+        {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => router.push('/doctor/complete-profile')}
-            className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border hover:shadow-md transition-all"
+            className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer"
           >
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-primary-600" />
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-green-600" />
             </div>
             <div className="text-left">
               <h3 className="font-medium text-gray-900">Complete Profile</h3>
               <p className="text-xs text-gray-500">Add your specialization and experience</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => router.push('/doctor/documents')}
-            className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border hover:shadow-md transition-all"
-          >
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <Upload className="w-5 h-5 text-primary-600" />
-            </div>
-            <div className="text-left">
-              <h3 className="font-medium text-gray-900">Upload Documents</h3>
-              <p className="text-xs text-gray-500">Submit verification documents</p>
             </div>
           </button>
         </div>
@@ -209,13 +351,21 @@ export default function DoctorDashboard() {
   // Fully Verified Dashboard
   if (!dashboardData) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+        <p className="text-gray-500">Loading dashboard data...</p>
+        <button 
+          onClick={checkDoctorStatus}
+          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50"
+        >
+          <RefreshCw className="w-4 h-4 inline mr-2" />
+          Retry
+        </button>
       </div>
     )
   }
 
-  const stats = dashboardData.stats
+  const stats = dashboardData.stats || {}
 
   return (
     <div className="space-y-6">
@@ -223,7 +373,7 @@ export default function DoctorDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName}
+            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Shield className="w-4 h-4 text-green-600" />
@@ -236,13 +386,13 @@ export default function DoctorDashboard() {
         <div className="flex gap-2">
           <button 
             onClick={() => router.push('/doctor/schedule')}
-            className="px-4 py-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer transition-all"
           >
             Update Schedule
           </button>
           <button 
             onClick={() => router.push('/doctor/appointments')}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-all"
           >
             View Appointments
           </button>
@@ -251,27 +401,27 @@ export default function DoctorDashboard() {
 
       {/* Stats Cards - Full Access */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Today's Appointments</p>
               <p className="text-2xl font-bold text-gray-900">{stats.todayAppointments || 0}</p>
             </div>
-            <Calendar className="w-8 h-8 text-primary-500 opacity-50" />
+            <Calendar className="w-8 h-8 text-green-500 opacity-50" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total Patients</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalPatients || 0}</p>
             </div>
-            <Users className="w-8 h-8 text-green-500 opacity-50" />
+            <Users className="w-8 h-8 text-blue-500 opacity-50" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">This Month Earnings</p>
@@ -281,7 +431,7 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Rating</p>
@@ -289,6 +439,7 @@ export default function DoctorDashboard() {
                 <span className="text-xl font-bold text-gray-900">{stats.averageRating || 0}</span>
                 <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
               </div>
+              <p className="text-xs text-gray-400">({stats.totalReviews || 0} reviews)</p>
             </div>
             <TrendingUp className="w-8 h-8 text-purple-500 opacity-50" />
           </div>
@@ -296,12 +447,12 @@ export default function DoctorDashboard() {
       </div>
 
       {/* Upcoming Appointments */}
-      <div className="bg-white rounded-xl shadow-sm border">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Upcoming Appointments</h2>
           <button 
             onClick={() => router.push('/doctor/appointments')}
-            className="text-sm text-primary-600 hover:text-primary-700"
+            className="text-sm text-green-600 hover:text-green-700 cursor-pointer"
           >
             View All
           </button>
@@ -317,16 +468,16 @@ export default function DoctorDashboard() {
               {dashboardData.upcomingAppointments?.slice(0, 5).map((apt) => (
                 <div key={apt._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-primary-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{apt.patient?.user?.fullName}</p>
+                      <p className="font-medium text-gray-900">{apt.patient?.user?.fullName || 'Patient'}</p>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Calendar className="w-3 h-3" />
-                        <span>{new Date(apt.appointmentDate).toLocaleDateString('bn-BD')}</span>
+                        <span>{apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString('bn-BD') : 'Date TBD'}</span>
                         <Clock className="w-3 h-3" />
-                        <span>{apt.startTime}</span>
+                        <span>{apt.startTime || 'Time TBD'}</span>
                       </div>
                     </div>
                   </div>
