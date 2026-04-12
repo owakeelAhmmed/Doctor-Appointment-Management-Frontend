@@ -4,18 +4,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { 
-  Stethoscope, 
-  Star, 
-  MapPin, 
-  Clock, 
-  Video, 
-  Phone,
-  Filter,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Calendar
+  Stethoscope, Star, MapPin, Video, Phone, Filter, Search, ChevronLeft, ChevronRight, Calendar, 
+  CheckCircle
 } from 'lucide-react'
+import { publicAPI } from '../lib/api/client'
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([])
@@ -27,11 +19,8 @@ export default function DoctorsPage() {
   const [sortBy, setSortBy] = useState('rating')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  
   const [specializations, setSpecializations] = useState([])
   const [cities, setCities] = useState([])
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
     fetchDoctors()
@@ -41,58 +30,75 @@ export default function DoctorsPage() {
     fetchFilters()
   }, [])
 
-  const fetchDoctors = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const params = new URLSearchParams({
-        page: currentPage,
-        limit: '12',
-        ...(searchTerm && { search: searchTerm }),
-        ...(selectedSpecialization && { specialization: selectedSpecialization }),
-        ...(selectedCity && { city: selectedCity }),
-        sortBy,
-      })
-      
-      const response = await fetch(`${API_URL}/api/v1/doctors/public?${params}`)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        setDoctors(data.data.doctors || [])
-        setTotalPages(data.data.pagination?.pages || 1)
-      } else {
-        setError(data.message || 'Failed to fetch doctors')
-      }
-    } catch (error) {
-      console.error('Error fetching doctors:', error)
-      setError('Network error. Please check if the backend server is running.')
-    } finally {
-      setLoading(false)
+const fetchDoctors = async () => {
+  setLoading(true)
+  setError(null)
+  try {
+    const params = {
+      page: currentPage,
+      limit: 12,
+      ...(searchTerm && { search: searchTerm }),
+      ...(selectedSpecialization && { specialization: selectedSpecialization }),
+      ...(selectedCity && { city: selectedCity }),
+      sortBy,
     }
+    
+    const response = await publicAPI.getDoctors(params)
+    
+    console.log('Full response:', response)
+    console.log('Response data:', response?.data)
+    
+    if (response?.data?.success) {
+      setDoctors(response.data.data.doctors || [])
+      setTotalPages(response.data.data.pagination?.pages || 1)
+    } 
+    // Fallback for different response structure
+    else if (response?.success) {
+      setDoctors(response.data.doctors || [])
+      setTotalPages(response.data.pagination?.pages || 1)
+    }
+    else {
+      setError('Invalid response format')
+    }
+  } catch (error) {
+    console.error('Error fetching doctors:', error)
+    setError(error?.message || 'Network error. Please check if the backend server is running.')
+  } finally {
+    setLoading(false)
   }
+}
 
-  const fetchFilters = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/v1/doctors/public/filters`)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      if (data.success) {
-        setSpecializations(data.data.specializations || [])
-        setCities(data.data.cities || [])
-      }
-    } catch (error) {
-      console.error('Error fetching filters:', error)
+const fetchFilters = async () => {
+  try {
+    const response = await publicAPI.getFilters()
+    
+    if (response?.data?.success) {
+      setSpecializations(response.data.data.specializations || [])
+      setCities(response.data.data.cities || [])
+    } else if (response?.success) {
+      setSpecializations(response.data.specializations || [])
+      setCities(response.data.cities || [])
     }
+  } catch (error) {
+    console.error('Error fetching filters:', error)
   }
+}
+
+  // const fetchFilters = async () => {
+  //   try {
+  //     const data = await publicAPI.getFilters()
+  //     if (data.success) {
+  //       setSpecializations(data.data.specializations || [])
+  //       setCities(data.data.cities || [])
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching filters:', error)
+  //   }
+  // }
+
+  // const isVerifiedDoctor = (doctor) => {
+  //   return doctor.verificationStatus === 'verified'
+  // }
 
   const renderStars = (rating) => {
     return (
@@ -103,7 +109,7 @@ export default function DoctorsPage() {
             className={`w-4 h-4 ${
               star <= rating
                 ? 'text-green-500 fill-green-500'
-                : 'text-gray-300'
+                : 'text-gray-600'
             }`}
           />
         ))}
@@ -113,17 +119,17 @@ export default function DoctorsPage() {
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Hero Section - Green Theme */}
+      {/* Hero Section */}
       <div className="bg-gradient-to-r from-green-700 to-green-900 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
-            Find the Best Doctors in Bangladesh
+            Find Verified Doctors in Bangladesh
           </h1>
           <p className="text-green-100 text-center text-lg mb-8">
-            Book appointments with verified doctors online
+            Book appointments with BMDC verified doctors online
           </p>
           
-          {/* Search Bar */}
+          {/* ✅ Verification Badge in Search */}
           <div className="max-w-2xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -135,13 +141,19 @@ export default function DoctorsPage() {
                 className="w-full pl-12 pr-4 py-4 rounded-xl border-0 shadow-lg focus:ring-2 focus:ring-green-500 text-gray-900 placeholder-gray-400"
               />
             </div>
+            <div className="flex justify-center mt-3">
+              <span className="inline-flex items-center gap-1 text-xs text-green-200 bg-green-800/50 px-3 py-1 rounded-full">
+                <CheckCircle className="w-3 h-3" />
+                Showing only verified doctors
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Filters - Dark Theme */}
+          {/* Sidebar Filters */}
           <div className="lg:w-80 space-y-6">
             <div className="bg-gray-900 rounded-xl shadow-lg border border-gray-800 p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -149,7 +161,6 @@ export default function DoctorsPage() {
                 <h3 className="font-semibold text-white">Filters</h3>
               </div>
               
-              {/* Specialization Filter */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Specialization
@@ -166,7 +177,6 @@ export default function DoctorsPage() {
                 </select>
               </div>
               
-              {/* City Filter */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   City
@@ -183,7 +193,6 @@ export default function DoctorsPage() {
                 </select>
               </div>
               
-              {/* Sort By */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Sort By
@@ -234,7 +243,7 @@ export default function DoctorsPage() {
             ) : doctors.length === 0 ? (
               <div className="text-center py-12 bg-gray-900 rounded-xl border border-gray-800">
                 <Stethoscope className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-white mb-2">No doctors found</h3>
+                <h3 className="text-lg font-medium text-white mb-2">No verified doctors found</h3>
                 <p className="text-gray-400">Try adjusting your search or filters</p>
               </div>
             ) : (
@@ -248,8 +257,7 @@ export default function DoctorsPage() {
                     >
                       <div className="p-5">
                         <div className="flex items-start gap-4">
-                          {/* Profile Image */}
-                          <div className="w-20 h-20 bg-gradient-to-br from-green-700 to-green-900 rounded-full flex items-center justify-center overflow-hidden">
+                          <div className="w-20 h-20 bg-gradient-to-br from-green-700 to-green-900 rounded-full flex items-center justify-center overflow-hidden relative">
                             {doctor.user?.profileImage ? (
                               <Image
                                 src={doctor.user.profileImage}
@@ -261,6 +269,10 @@ export default function DoctorsPage() {
                             ) : (
                               <Stethoscope className="w-8 h-8 text-white" />
                             )}
+                            {/* ✅ Verified Badge */}
+                            <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1">
+                              <CheckCircle className="w-4 h-4 text-white" />
+                            </div>
                           </div>
                           
                           <div className="flex-1">
@@ -271,7 +283,6 @@ export default function DoctorsPage() {
                               {doctor.specialization}
                             </p>
                             
-                            {/* Rating */}
                             <div className="flex items-center gap-2 mt-2">
                               {renderStars(doctor.rating || 0)}
                               <span className="text-xs text-gray-500">
@@ -279,7 +290,6 @@ export default function DoctorsPage() {
                               </span>
                             </div>
                             
-                            {/* Experience */}
                             <p className="text-xs text-gray-500 mt-2">
                               {doctor.experienceYears || 0}+ years experience
                             </p>
@@ -287,13 +297,11 @@ export default function DoctorsPage() {
                         </div>
                         
                         <div className="mt-4 pt-4 border-t border-gray-800">
-                          {/* Location */}
                           <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
                             <MapPin className="w-4 h-4" />
                             <span>{doctor.currentWorkplace?.name}, {doctor.currentWorkplace?.city}</span>
                           </div>
                           
-                          {/* Consultation Types */}
                           <div className="flex items-center gap-3 mb-3">
                             {doctor.consultationTypes?.includes('video') && (
                               <span className="flex items-center gap-1 text-xs text-green-400">
@@ -305,14 +313,8 @@ export default function DoctorsPage() {
                                 <Phone className="w-3 h-3" /> Phone
                               </span>
                             )}
-                            {doctor.consultationTypes?.includes('in-person') && (
-                              <span className="flex items-center gap-1 text-xs text-purple-400">
-                                <MapPin className="w-3 h-3" /> In-Person
-                              </span>
-                            )}
                           </div>
                           
-                          {/* Fee and Book Button */}
                           <div className="flex items-center justify-between">
                             <div>
                               <span className="text-lg font-bold text-white">

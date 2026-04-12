@@ -1,4 +1,8 @@
-import axiosInstance from './axios'
+import axiosInstance from "./axios"
+
+
+// API URL for direct fetch (if needed)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
 
 // Auth API
 export const authAPI = {
@@ -35,54 +39,55 @@ export const patientAPI = {
 }
 
 // Doctor API
+// Doctor API
 export const doctorAPI = {
-  getProfile: () => axiosInstance.get('/doctor/profile'),
-  updateProfile: (data) => axiosInstance.put('/doctor/profile', data),
+  getProfile: () => axiosInstance.get('/doctors/profile'),
+  updateProfile: (data) => axiosInstance.put('/doctors/profile', data),
   
   // Document Upload
-  uploadDocuments: (formData) => axiosInstance.post('/doctor/documents', formData, {
+  uploadDocuments: (formData) => axiosInstance.post('/doctors/documents', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   }),
   
   // Verification
-  getVerificationStatus: () => axiosInstance.get('/doctor/verification-status'),
-  getCompleteProfile: () => axiosInstance.get('/doctor/complete-profile'),
-  submitCompleteProfile: (data) => axiosInstance.post('/doctor/complete-profile', data),
+  getVerificationStatus: () => axiosInstance.get('/doctors/verification-status'),
+  getCompleteProfile: () => axiosInstance.get('/doctors/complete-profile'),
+  submitCompleteProfile: (data) => axiosInstance.post('/doctors/complete-profile', data),
   
   // Schedule & Fee
-  updateSchedule: (data) => axiosInstance.put('/doctor/schedule', data),
-  updateFee: (fee) => axiosInstance.put('/doctor/fee', { consultationFee: fee }),
+  updateSchedule: (data) => axiosInstance.put('/doctors/schedule', data),
+  updateFee: (fee) => axiosInstance.put('/doctors/fee', { consultationFee: fee }),
   
   // Banking
-  updateBankInfo: (data) => axiosInstance.put('/doctor/bank-info', data),
-  updateMobileBanking: (data) => axiosInstance.put('/doctor/mobile-banking', data),
+  updateBankInfo: (data) => axiosInstance.put('/doctors/bank-info', data),
+  updateMobileBanking: (data) => axiosInstance.put('/doctors/mobile-banking', data),
   
   // Appointments
-  getAppointments: (params) => axiosInstance.get('/doctor/appointments', { params }),
-  getTodaySchedule: () => axiosInstance.get('/doctor/appointments/today'),
+  getAppointments: (params) => axiosInstance.get('/doctors/appointments', { params }),
+  getTodaySchedule: () => axiosInstance.get('/doctors/appointments/today'),
   updateAppointmentStatus: (appointmentId, status, notes) => 
-    axiosInstance.put(`/doctor/appointments/${appointmentId}/status`, { status, notes }),
+    axiosInstance.put(`/doctors/appointments/${appointmentId}/status`, { status, notes }),
   getAppointmentDetails: (appointmentId) => 
-    axiosInstance.get(`/doctor/appointments/${appointmentId}`),
+    axiosInstance.get(`/doctors/appointments/${appointmentId}`),
   
   // Patients
-  getPatients: (params) => axiosInstance.get('/doctor/patients', { params }),
-  getPatientDetails: (patientId) => axiosInstance.get(`/doctor/patients/${patientId}`),
+  getPatients: (params) => axiosInstance.get('/doctors/patients', { params }),
+  getPatientDetails: (patientId) => axiosInstance.get(`/doctors/patients/${patientId}`),
   
   // Reviews
-  getReviews: (params) => axiosInstance.get('/doctor/reviews', { params }),
+  getReviews: (params) => axiosInstance.get('/doctors/reviews', { params }),
   respondToReview: (reviewId, comment) => 
-    axiosInstance.post(`/doctor/reviews/${reviewId}/respond`, { comment }),
+    axiosInstance.post(`/doctors/reviews/${reviewId}/respond`, { comment }),
   
   // Earnings & Withdrawals
-  getEarnings: (params) => axiosInstance.get('/doctor/earnings', { params }),
-  requestWithdrawal: (data) => axiosInstance.post('/doctor/withdrawals', data),
-  getWithdrawalHistory: () => axiosInstance.get('/doctor/withdrawals'),
+  getEarnings: (params) => axiosInstance.get('/doctors/earnings', { params }),
+  requestWithdrawal: (data) => axiosInstance.post('/doctors/withdrawals', data),
+  getWithdrawalHistory: () => axiosInstance.get('/doctors/withdrawals'),
   
   // Dashboard
-  getDashboard: () => axiosInstance.get('/doctor/dashboard'),
+  getDashboard: () => axiosInstance.get('/doctors/dashboard'),
 }
 
 // Admin API
@@ -104,7 +109,7 @@ export const adminAPI = {
   updateSettings: (data) => axiosInstance.put('/admin/settings', data),
 }
 
-
+// ✅ Public API - Fixed version (only one definition)
 export const publicAPI = {
   // Get all doctors with filters
   getDoctors: (params) => {
@@ -129,6 +134,7 @@ export const publicAPI = {
   },
 }
 
+// Default export
 export default {
   auth: authAPI,
   patient: patientAPI,

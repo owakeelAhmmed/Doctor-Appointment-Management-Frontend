@@ -5,13 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import { format } from 'date-fns'
 import {
   Star,
   MapPin,
   Clock,
   Video,
   Phone,
-  Calendar,
+  Calendar as CalendarIcon,
   Award,
   Briefcase,
   GraduationCap,
@@ -21,9 +22,26 @@ import {
   ChevronLeft,
   X,
   Building,
+  Stethoscope,
+  UserCheck,
   CreditCard,
-  Smartphone
+  Shield,
+  Heart,
+  Share2,
+  ChevronRight
 } from 'lucide-react'
+import { publicAPI } from '@/app/lib/api/client'
+
+const showToast = {
+  error: (message) => {
+    console.error('Error:', message)
+    alert(message)
+  },
+  success: (message) => {
+    console.log('Success:', message)
+    alert(message)
+  }
+}
 
 export default function DoctorDetailsPage() {
   const params = useParams()
@@ -39,6 +57,7 @@ export default function DoctorDetailsPage() {
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [bookingStep, setBookingStep] = useState(1)
   const [bookingLoading, setBookingLoading] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(false)
 
   useEffect(() => {
     fetchDoctorDetails()
@@ -50,31 +69,61 @@ export default function DoctorDetailsPage() {
     }
   }, [doctor, selectedDate])
 
-const fetchDoctorDetails = async () => {
-  try {
-    const response = await publicAPI.getDoctorDetails(params.id)
-    if (response.data.success) {
-      setDoctor(response.data.data)
+  const fetchDoctorDetails = async () => {
+    try {
+      setLoading(true)
+      const response = await publicAPI.getDoctorDetails(params.id)
+      
+      let doctorData = null
+      if (response?.data?.success) {
+        doctorData = response.data.data
+      } else if (response?.success) {
+        doctorData = response.data
+      } else if (response?.data) {
+        doctorData = response.data
+      }
+      
+      if (doctorData) {
+        setDoctor(doctorData)
+      } else {
+        showToast.error('Failed to load doctor details')
+      }
+    } catch (error) {
+      console.error('Error fetching doctor:', error)
+      showToast.error(error?.message || 'Failed to load doctor details')
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error('Error fetching doctor:', error)
-    showToast.error('Failed to load doctor details')
-  } finally {
-    setLoading(false)
   }
-}
 
-const fetchAvailableSlots = async () => {
-  try {
-    const dateStr = selectedDate.toISOString().split('T')[0]
-    const response = await publicAPI.getDoctorSlots(params.id, dateStr)
-    if (response.data.success) {
-      setAvailableSlots(response.data.data.slots)
+  const fetchAvailableSlots = async () => {
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0]
+      const response = await publicAPI.getDoctorSlots(params.id, dateStr)
+      
+      let slots = []
+      if (response?.data?.success) {
+        slots = response.data.data.slots || []
+      } else if (response?.success) {
+        slots = response.data.slots || []
+      } else if (response?.data?.slots) {
+        slots = response.data.slots
+      }
+      
+      const formattedSlots = slots.map(slot => ({
+        time: slot.time || slot.startTime,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        type: slot.type,
+        maxPatients: slot.maxPatients
+      }))
+      
+      setAvailableSlots(formattedSlots)
+    } catch (error) {
+      console.error('Error fetching slots:', error)
+      setAvailableSlots([])
     }
-  } catch (error) {
-    console.error('Error fetching slots:', error)
   }
-}
 
   const handleBooking = async () => {
     if (!session) {
@@ -82,7 +131,7 @@ const fetchAvailableSlots = async () => {
       return
     }
 
-    if (session.user.role !== 'patient') {
+    if (session.user?.role !== 'patient') {
       alert('Only patients can book appointments')
       return
     }
@@ -94,12 +143,16 @@ const fetchAvailableSlots = async () => {
 
     setBookingLoading(true)
     try {
-      const response = await fetch('/api/v1/appointments', {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/appointments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           doctorId: doctor._id,
-          appointmentDate: selectedDate,
+          appointmentDate: selectedDate.toISOString().split('T')[0],
           startTime: selectedSlot.time,
           symptoms,
           type: selectedType,
@@ -112,7 +165,7 @@ const fetchAvailableSlots = async () => {
         setShowBookingModal(false)
         router.push(`/payment?appointmentId=${data.data.appointment._id}`)
       } else {
-        alert(data.message)
+        alert(data.message || 'Failed to book appointment')
       }
     } catch (error) {
       console.error('Booking error:', error)
@@ -128,8 +181,8 @@ const fetchAvailableSlots = async () => {
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`w-5 h-5 ${
-              star <= rating
+            className={`w-4 h-4 ${
+              star <= (rating || 0)
                 ? 'text-yellow-400 fill-yellow-400'
                 : 'text-gray-300'
             }`}
@@ -139,14 +192,25 @@ const fetchAvailableSlots = async () => {
     )
   }
 
+  const formatTime = (time) => {
+    if (!time) return ''
+    const [hours, minutes] = time.split(':')
+    const hour = parseInt(hours)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const hour12 = hour % 12 || 12
+    return `${hour12}:${minutes} ${ampm}`
+  }
+
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="animate-pulse">
-          <div className="h-64 bg-gray-200 rounded-xl mb-8"></div>
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="animate-pulse">
+            <div className="h-64 bg-gray-200 rounded-2xl mb-8"></div>
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
         </div>
       </div>
     )
@@ -154,77 +218,92 @@ const fetchAvailableSlots = async () => {
 
   if (!doctor) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Doctor not found</h2>
-        <Link href="/doctors" className="text-blue-600 mt-4 inline-block">
-          ← Back to Doctors
-        </Link>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-12 text-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
+            <Stethoscope className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Doctor not found</h2>
+            <p className="text-gray-500 mb-6">The doctor you're looking for doesn't exist or is not verified.</p>
+            <Link href="/doctors" className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+              <ChevronLeft className="w-4 h-4" />
+              Back to Doctors
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Link href="/doctors" className="text-white/80 hover:text-white inline-flex items-center gap-2 mb-6">
+      <div className="bg-gradient-to-r from-green-700 to-green-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Link href="/doctors" className="text-green-100 hover:text-white inline-flex items-center gap-2 mb-6 transition">
             <ChevronLeft className="w-4 h-4" />
             Back to Doctors
           </Link>
           
-          <div className="flex flex-col md:flex-row gap-6 items-start">
-            {/* Profile Image */}
-            <div className="w-32 h-32 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
-              {doctor.user?.profileImage ? (
-                <Image
-                  src={doctor.user.profileImage}
-                  alt={doctor.user.fullName}
-                  width={128}
-                  height={128}
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                  <span className="text-4xl text-white font-bold">
-                    {doctor.user?.fullName?.charAt(0) || 'D'}
-                  </span>
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Profile Section */}
+            <div className="flex items-start gap-5 flex-1">
+              <div className="relative">
+                <div className="w-28 h-28 lg:w-36 lg:h-36 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg">
+                  {doctor.user?.profileImage ? (
+                    <Image
+                      src={doctor.user.profileImage}
+                      alt={doctor.user.fullName}
+                      width={144}
+                      height={144}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <span className="text-5xl text-white font-bold">
+                      {doctor.user?.fullName?.charAt(0) || 'D'}
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-            
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-white mb-2">
-                Dr. {doctor.user?.fullName}
-              </h1>
-              <p className="text-blue-100 text-lg mb-3">{doctor.specialization}</p>
+                <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-1.5 shadow-md">
+                  <CheckCircle className="w-4 h-4 text-white" />
+                </div>
+              </div>
               
-              <div className="flex flex-wrap items-center gap-4 text-white/90">
-                <div className="flex items-center gap-2">
-                  {renderStars(doctor.rating)}
-                  <span>({doctor.totalReviews} reviews)</span>
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <h1 className="text-2xl lg:text-3xl font-bold text-white">
+                    Dr. {doctor.user?.fullName}
+                  </h1>
+                  <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs text-white">BMDC Verified</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  <span>{doctor.totalPatients}+ patients</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4" />
-                  <span>{doctor.experienceYears}+ years experience</span>
+                <p className="text-green-100 text-base lg:text-lg mb-3">{doctor.specialization}</p>
+                
+                <div className="flex flex-wrap items-center gap-4 text-green-100">
+                  <div className="flex items-center gap-1.5">
+                    {renderStars(doctor.rating)}
+                    <span className="text-sm">({doctor.totalReviews || 0} reviews)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-4 h-4" />
+                    <span className="text-sm">{doctor.totalPatients || 0}+ patients</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Award className="w-4 h-4" />
+                    <span className="text-sm">{doctor.experienceYears || 0}+ years exp</span>
+                  </div>
                 </div>
               </div>
             </div>
             
             {/* Fee Card */}
-            <div className="bg-white rounded-xl p-4 text-center min-w-[180px]">
+            <div className="bg-white rounded-2xl p-5 text-center min-w-[200px] shadow-lg">
               <p className="text-sm text-gray-500">Consultation Fee</p>
-              <p className="text-2xl font-bold text-gray-900">৳{doctor.consultationFee}</p>
-              <p className="text-xs text-gray-500 mt-1">Follow-up: ৳{doctor.followUpFee}</p>
+              <p className="text-3xl font-bold text-gray-900">৳{doctor.consultationFee || 0}</p>
+              <p className="text-xs text-gray-400 mt-1">Follow-up: ৳{doctor.followUpFee || 0}</p>
               <button
                 onClick={() => setShowBookingModal(true)}
-                className="mt-3 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                className="mt-4 w-full px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
               >
-                <Calendar className="w-4 h-4" />
+                <CalendarIcon className="w-4 h-4" />
                 Book Appointment
               </button>
             </div>
@@ -236,73 +315,96 @@ const fetchAvailableSlots = async () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* About */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">About</h2>
-              <p className="text-gray-600">
-                {doctor.user?.bio || `Dr. ${doctor.user?.fullName} is a renowned ${doctor.specialization} specialist with over ${doctor.experienceYears} years of experience.`}
+            {/* About Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-green-600" />
+                About
+              </h2>
+              <p className="text-gray-600 leading-relaxed">
+                {doctor.user?.bio || `Dr. ${doctor.user?.fullName} is a renowned ${doctor.specialization} specialist with over ${doctor.experienceYears} years of experience. Dedicated to providing quality healthcare with compassion and expertise.`}
               </p>
             </div>
             
-            {/* Qualifications */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-blue-600" />
-                Qualifications
-              </h2>
-              <div className="space-y-4">
-                {doctor.qualifications?.map((qual, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-gray-900">{qual.degree}</p>
-                      <p className="text-sm text-gray-500">
-                        {qual.institute}, {qual.country} ({qual.year})
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Workplace */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-blue-600" />
-                Current Workplace
-              </h2>
-              <div className="space-y-3">
-                <p className="font-medium text-gray-900">{doctor.currentWorkplace?.name}</p>
-                <p className="text-gray-600">{doctor.currentWorkplace?.address}</p>
-                <p className="text-gray-600">{doctor.currentWorkplace?.city}, {doctor.currentWorkplace?.district}</p>
-                <p className="text-gray-600">📞 {doctor.currentWorkplace?.contactNumber}</p>
-              </div>
-            </div>
-            
-            {/* Reviews */}
-            {doctor.reviews && doctor.reviews.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
+            {/* Qualifications Card */}
+            {doctor.qualifications && doctor.qualifications.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-blue-600" />
-                  Patient Reviews ({doctor.totalReviews})
+                  <GraduationCap className="w-5 h-5 text-green-600" />
+                  Qualifications & Education
                 </h2>
                 <div className="space-y-4">
-                  {doctor.reviews.slice(0, 5).map((review) => (
-                    <div key={review._id} className="border-b last:border-0 pb-4 last:pb-0">
+                  {doctor.qualifications.map((qual, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{qual.degree}</p>
+                        <p className="text-sm text-gray-500">
+                          {qual.institute}, {qual.country} ({qual.year})
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Workplace Card */}
+            {doctor.currentWorkplace && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-green-600" />
+                  Current Workplace
+                </h2>
+                <div className="space-y-2">
+                  <p className="font-medium text-gray-900 text-lg">{doctor.currentWorkplace.name}</p>
+                  {doctor.currentWorkplace.address && (
+                    <p className="text-gray-500 text-sm flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      {doctor.currentWorkplace.address}
+                    </p>
+                  )}
+                  <p className="text-gray-500 text-sm">{doctor.currentWorkplace.city}</p>
+                  {doctor.currentWorkplace.contactNumber && (
+                    <p className="text-gray-500 text-sm">📞 {doctor.currentWorkplace.contactNumber}</p>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Reviews Card */}
+            {doctor.reviews && doctor.reviews.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                    Patient Reviews
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {renderStars(doctor.rating)}
+                      <span className="text-sm font-medium text-gray-900 ml-1">{doctor.rating}/5</span>
+                    </div>
+                    <span className="text-sm text-gray-500">({doctor.totalReviews} reviews)</span>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {doctor.reviews.slice(0, 3).map((review) => (
+                    <div key={review._id} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                           {review.patient?.user?.profileImage ? (
                             <Image
                               src={review.patient.user.profileImage}
                               alt={review.patient.user.fullName}
                               width={40}
                               height={40}
-                              className="rounded-full"
+                              className="rounded-full object-cover"
                             />
                           ) : (
-                            <span className="text-sm font-medium">
-                              {review.patient?.user?.fullName?.charAt(0) || 'P'}
-                            </span>
+                            <UserCheck className="w-5 h-5 text-gray-400" />
                           )}
                         </div>
                         <div>
@@ -315,35 +417,41 @@ const fetchAvailableSlots = async () => {
                                   className={`w-3 h-3 ${
                                     star <= review.rating
                                       ? 'text-yellow-400 fill-yellow-400'
-                                      : 'text-gray-300'
+                                      : 'text-gray-200'
                                   }`}
                                 />
                               ))}
                             </div>
-                            <span className="text-xs text-gray-500">
-                              {new Date(review.createdAt).toLocaleDateString()}
+                            <span className="text-xs text-gray-400">
+                              {format(new Date(review.createdAt), 'MMM dd, yyyy')}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <p className="text-gray-600 text-sm">{review.comment}</p>
+                      <p className="text-gray-600 text-sm leading-relaxed">{review.comment}</p>
                     </div>
                   ))}
                 </div>
+                {doctor.totalReviews > 3 && (
+                  <button className="mt-4 text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
+                    View all {doctor.totalReviews} reviews
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             )}
           </div>
           
-          {/* Sidebar - Schedule */}
+          {/* Sidebar - Schedule Card */}
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border p-6 sticky top-24">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 sticky top-24">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />
+                <Clock className="w-5 h-5 text-green-600" />
                 Available Schedule
               </h2>
               
-              {/* Day Selector */}
-              <div className="mb-4">
+              {/* Date Picker */}
+              <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Date
                 </label>
@@ -352,60 +460,80 @@ const fetchAvailableSlots = async () => {
                   value={selectedDate.toISOString().split('T')[0]}
                   onChange={(e) => setSelectedDate(new Date(e.target.value))}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
                 />
               </div>
               
               {/* Time Slots */}
-              {availableSlots.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Available Time Slots</p>
+              <div className="mb-5">
+                <p className="text-sm font-medium text-gray-700 mb-3">
+                  Available Time Slots
+                  {availableSlots.length > 0 && (
+                    <span className="ml-2 text-xs text-green-600">({availableSlots.length} slots)</span>
+                  )}
+                </p>
+                {availableSlots.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {availableSlots.map((slot, idx) => (
                       <button
                         key={idx}
                         onClick={() => setSelectedSlot(slot)}
-                        className={`p-2 text-sm rounded-lg border transition ${
+                        className={`p-2.5 text-sm rounded-xl border transition-all cursor-pointer ${
                           selectedSlot?.time === slot.time
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 text-gray-700 hover:border-blue-400'
+                            ? 'bg-green-600 text-white border-green-600 shadow-md'
+                            : 'border-gray-200 text-gray-700 hover:border-green-400 hover:bg-green-50'
                         }`}
                       >
-                        {slot.time}
+                        {formatTime(slot.time)}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-xl">
+                    <Clock className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm text-gray-500">No available slots</p>
+                    <p className="text-xs text-gray-400 mt-1">Please select another date</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Consultation Type */}
+              {doctor.consultationTypes && doctor.consultationTypes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Consultation Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {doctor.consultationTypes.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setSelectedType(type)}
+                        className={`p-2.5 text-sm rounded-xl border transition flex items-center justify-center gap-2 cursor-pointer ${
+                          selectedType === type
+                            ? 'bg-green-600 text-white border-green-600'
+                            : 'border-gray-200 text-gray-700 hover:border-green-400'
+                        }`}
+                      >
+                        {type === 'video' && <Video className="w-4 h-4" />}
+                        {type === 'phone' && <Phone className="w-4 h-4" />}
+                        {type === 'in-person' && <Building className="w-4 h-4" />}
+                        {type === 'video' ? 'Video' : type === 'phone' ? 'Phone' : 'In-Person'}
                       </button>
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No available slots for this date</p>
-                  <p className="text-sm">Please select another date</p>
-                </div>
               )}
-              
-              {/* Consultation Type */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Consultation Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {doctor.consultationTypes?.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setSelectedType(type)}
-                      className={`p-2 text-sm rounded-lg border transition flex items-center justify-center gap-2 ${
-                        selectedType === type
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'border-gray-300 text-gray-700 hover:border-blue-400'
-                      }`}
-                    >
-                      {type === 'video' && <Video className="w-4 h-4" />}
-                      {type === 'phone' && <Phone className="w-4 h-4" />}
-                      {type === 'in-person' && <Building className="w-4 h-4" />}
-                      {type === 'video' ? 'Video Call' : type === 'phone' ? 'Phone Call' : 'In-Person'}
-                    </button>
-                  ))}
+            </div>
+
+            {/* Info Card */}
+            <div className="bg-blue-50 rounded-2xl border border-blue-200 p-4">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-900 text-sm">Verified Doctor</h4>
+                  <p className="text-xs text-blue-700 mt-1">
+                    This doctor is BMDC verified and has completed all verification processes.
+                  </p>
                 </div>
               </div>
             </div>
@@ -413,16 +541,16 @@ const fetchAvailableSlots = async () => {
         </div>
       </div>
       
-      {/* Booking Modal */}
+      {/* Booking Modal - Keep existing modal code */}
       {showBookingModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-900">Book Appointment</h2>
                 <button
                   onClick={() => setShowBookingModal(false)}
-                  className="p-1 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-gray-100 rounded-xl transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -432,13 +560,13 @@ const fetchAvailableSlots = async () => {
               <div className="flex items-center justify-between mb-6">
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex-1 text-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                      bookingStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-2 text-sm font-medium ${
+                      bookingStep >= step ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500'
                     }`}>
                       {step}
                     </div>
                     <p className="text-xs text-gray-500">
-                      {step === 1 ? 'Select Slot' : step === 2 ? 'Details' : 'Confirm'}
+                      {step === 1 ? 'Slot' : step === 2 ? 'Details' : 'Confirm'}
                     </p>
                   </div>
                 ))}
@@ -450,8 +578,8 @@ const fetchAvailableSlots = async () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Selected Date
                     </label>
-                    <p className="text-gray-900">
-                      {selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    <p className="text-gray-900 font-medium">
+                      {format(selectedDate, 'EEEE, MMMM d, yyyy')}
                     </p>
                   </div>
                   
@@ -464,13 +592,13 @@ const fetchAvailableSlots = async () => {
                         <button
                           key={idx}
                           onClick={() => setSelectedSlot(slot)}
-                          className={`p-2 text-sm rounded-lg border ${
+                          className={`p-2 text-sm rounded-xl border transition ${
                             selectedSlot?.time === slot.time
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'border-gray-300 hover:border-blue-400'
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'border-gray-200 hover:border-green-400'
                           }`}
                         >
-                          {slot.time}
+                          {formatTime(slot.time)}
                         </button>
                       ))}
                     </div>
@@ -479,7 +607,7 @@ const fetchAvailableSlots = async () => {
                   <button
                     onClick={() => setBookingStep(2)}
                     disabled={!selectedSlot}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
                   >
                     Continue
                   </button>
@@ -497,10 +625,10 @@ const fetchAvailableSlots = async () => {
                         <button
                           key={type}
                           onClick={() => setSelectedType(type)}
-                          className={`p-2 text-sm rounded-lg border ${
+                          className={`p-2 text-sm rounded-xl border transition ${
                             selectedType === type
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'border-gray-300 hover:border-blue-400'
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'border-gray-200 hover:border-green-400'
                           }`}
                         >
                           {type === 'video' ? 'Video Call' : type === 'phone' ? 'Phone Call' : 'In-Person'}
@@ -511,51 +639,51 @@ const fetchAvailableSlots = async () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Symptoms / Reason for Visit
+                      Symptoms / Reason
                     </label>
                     <textarea
                       value={symptoms}
                       onChange={(e) => setSymptoms(e.target.value)}
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Please describe your symptoms or reason for consultation..."
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                      placeholder="Please describe your symptoms..."
                     />
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-2">Appointment Summary</h3>
-                    <div className="space-y-1 text-sm">
-                      <p className="flex justify-between">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="font-medium text-gray-900 mb-2">Summary</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
                         <span className="text-gray-500">Doctor:</span>
-                        <span>Dr. {doctor.user?.fullName}</span>
-                      </p>
-                      <p className="flex justify-between">
-                        <span className="text-gray-500">Date & Time:</span>
-                        <span>{selectedDate.toLocaleDateString()} at {selectedSlot?.time}</span>
-                      </p>
-                      <p className="flex justify-between">
-                        <span className="text-gray-500">Type:</span>
-                        <span>{selectedType}</span>
-                      </p>
-                      <p className="flex justify-between font-medium pt-2 border-t">
-                        <span>Fee:</span>
-                        <span>৳{doctor.consultationFee}</span>
-                      </p>
+                        <span className="text-gray-900">Dr. {doctor.user?.fullName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Date:</span>
+                        <span className="text-gray-900">{format(selectedDate, 'MMM d, yyyy')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Time:</span>
+                        <span className="text-gray-900">{selectedSlot?.time}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t">
+                        <span className="text-gray-500">Fee:</span>
+                        <span className="font-medium text-gray-900">৳{doctor.consultationFee}</span>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="flex gap-3">
                     <button
                       onClick={() => setBookingStep(1)}
-                      className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition"
                     >
                       Back
                     </button>
                     <button
                       onClick={() => setBookingStep(3)}
-                      className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
                     >
-                      Review & Confirm
+                      Review
                     </button>
                   </div>
                 </div>
@@ -564,55 +692,57 @@ const fetchAvailableSlots = async () => {
               {bookingStep === 3 && (
                 <div className="space-y-4">
                   <div className="text-center py-4">
-                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-3" />
-                    <h3 className="text-lg font-semibold text-gray-900">Review Your Appointment</h3>
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Confirm Appointment</h3>
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Stethoscope className="w-6 h-6 text-blue-600" />
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <Stethoscope className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">Dr. {doctor.user?.fullName}</p>
-                        <p className="text-sm text-gray-500">{doctor.specialization}</p>
+                        <p className="text-xs text-gray-500">{doctor.specialization}</p>
                       </div>
                     </div>
                     
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-3">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>{selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                        <CalendarIcon className="w-4 h-4 text-gray-400" />
+                        <span>{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        <span>{selectedSlot?.time}</span>
+                        <span>{formatTime(selectedSlot?.time)}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         {selectedType === 'video' && <Video className="w-4 h-4 text-gray-400" />}
                         {selectedType === 'phone' && <Phone className="w-4 h-4 text-gray-400" />}
                         {selectedType === 'in-person' && <MapPin className="w-4 h-4 text-gray-400" />}
-                        <span>{selectedType === 'video' ? 'Video Consultation' : selectedType === 'phone' ? 'Phone Consultation' : 'In-Person Visit'}</span>
+                        <span className="capitalize">{selectedType} Consultation</span>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                    <p className="font-medium mb-1">Payment Information</p>
-                    <p>You will be redirected to complete payment after confirmation. Total amount: ৳{doctor.consultationFee}</p>
+                  <div className="bg-yellow-50 rounded-xl p-3 text-sm text-yellow-800">
+                    <p className="font-medium mb-1">Payment</p>
+                    <p>Total amount: ৳{doctor.consultationFee}</p>
                   </div>
                   
                   <div className="flex gap-3">
                     <button
                       onClick={() => setBookingStep(2)}
-                      className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition"
                     >
                       Back
                     </button>
                     <button
                       onClick={handleBooking}
                       disabled={bookingLoading}
-                      className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 transition"
                     >
                       {bookingLoading ? (
                         <>
@@ -620,7 +750,7 @@ const fetchAvailableSlots = async () => {
                           Processing...
                         </>
                       ) : (
-                        'Confirm & Proceed to Payment'
+                        'Confirm & Pay'
                       )}
                     </button>
                   </div>
@@ -630,6 +760,6 @@ const fetchAvailableSlots = async () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
