@@ -1,8 +1,7 @@
 import axiosInstance from "./axios"
 
-
 // API URL for direct fetch (if needed)
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1'
 
 // Auth API
 export const authAPI = {
@@ -38,7 +37,14 @@ export const patientAPI = {
   downloadPrescription: (prescriptionId) => axiosInstance.get(`/patient/prescriptions/${prescriptionId}/download`),
 }
 
-// Doctor API
+// Payment API
+export const paymentAPI = {
+  initiateSSLCommerzPayment: (data) => axiosInstance.post('/payments/sslcommerz/initiate', data),
+  getPaymentStatus: (paymentId) => axiosInstance.get(`/payments/${paymentId}`),
+  getMyPayments: (params) => axiosInstance.get('/payments/my', { params }),
+  getPaymentByAppointment: (appointmentId) => axiosInstance.get(`/payments/appointment/${appointmentId}`),
+}
+
 // Doctor API
 export const doctorAPI = {
   getProfile: () => axiosInstance.get('/doctors/profile'),
@@ -109,29 +115,12 @@ export const adminAPI = {
   updateSettings: (data) => axiosInstance.put('/admin/settings', data),
 }
 
-// ✅ Public API - Fixed version (only one definition)
+// ✅ Public API
 export const publicAPI = {
-  // Get all doctors with filters
-  getDoctors: (params) => {
-    return axiosInstance.get('/doctors/public', { params })
-  },
-  
-  // Get filter options (specializations and cities)
-  getFilters: () => {
-    return axiosInstance.get('/doctors/public/filters')
-  },
-  
-  // Get single doctor details
-  getDoctorDetails: (doctorId) => {
-    return axiosInstance.get(`/doctors/public/${doctorId}`)
-  },
-  
-  // Get doctor's available slots
-  getDoctorSlots: (doctorId, date) => {
-    return axiosInstance.get(`/doctors/public/${doctorId}/slots`, { 
-      params: { date } 
-    })
-  },
+  getDoctors: (params) => axiosInstance.get('/doctors/public', { params }),
+  getFilters: () => axiosInstance.get('/doctors/public/filters'),
+  getDoctorDetails: (doctorId) => axiosInstance.get(`/doctors/public/${doctorId}`),
+  getDoctorSlots: (doctorId, date) => axiosInstance.get(`/doctors/public/${doctorId}/slots`, { params: { date } }),
 }
 
 // Default export
@@ -141,4 +130,5 @@ export default {
   doctor: doctorAPI,
   public: publicAPI,
   admin: adminAPI,
+  payment: paymentAPI,
 }

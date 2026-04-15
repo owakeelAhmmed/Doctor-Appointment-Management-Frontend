@@ -24,13 +24,10 @@ import {
   Building,
   Stethoscope,
   UserCheck,
-  CreditCard,
   Shield,
-  Heart,
-  Share2,
   ChevronRight
 } from 'lucide-react'
-import { publicAPI } from '@/app/lib/api/client'
+import { publicAPI, paymentAPI } from '@/app/lib/api/client'
 
 const showToast = {
   error: (message) => {
@@ -57,7 +54,6 @@ export default function DoctorDetailsPage() {
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [bookingStep, setBookingStep] = useState(1)
   const [bookingLoading, setBookingLoading] = useState(false)
-  const [isFavorite, setIsFavorite] = useState(false)
 
   useEffect(() => {
     fetchDoctorDetails()
@@ -124,56 +120,73 @@ export default function DoctorDetailsPage() {
       setAvailableSlots([])
     }
   }
-
+  
   const handleBooking = async () => {
-    if (!session) {
-      router.push('/login')
-      return
-    }
-
-    if (session.user?.role !== 'patient') {
-      alert('Only patients can book appointments')
-      return
-    }
-
-    if (!selectedSlot) {
-      alert('Please select a time slot')
-      return
-    }
-
-    setBookingLoading(true)
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/v1/appointments`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          doctorId: doctor._id,
-          appointmentDate: selectedDate.toISOString().split('T')[0],
-          startTime: selectedSlot.time,
-          symptoms,
-          type: selectedType,
-          paymentMethod: 'bKash'
-        })
-      })
-
-      const data = await response.json()
-      if (data.success) {
-        setShowBookingModal(false)
-        router.push(`/payment?appointmentId=${data.data.appointment._id}`)
-      } else {
-        alert(data.message || 'Failed to book appointment')
+      if (!session) {
+        router.push('/login')
+        return
       }
-    } catch (error) {
-      console.error('Booking error:', error)
-      alert('Failed to book appointment')
-    } finally {
-      setBookingLoading(false)
+
+      if (session.user?.role !== 'patient') {
+        alert('Only patients can book appointments')
+        return
+      }
+
+      if (!selectedSlot) {
+        alert('Please select a time slot')
+        return
+      }
+
+      setBookingLoading(true)
+      try {
+        const token = localStorage.getItem('token')
+        
+        // First, create appointment with fee included
+        const appointmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/v1/appointments`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            doctorId: doctor._id,
+            appointmentDate: selectedDate.toISOString().split('T')[0],
+            startTime: selectedSlot.time,
+            symptoms: symptoms,
+            type: selectedType,
+            paymentMethod: 'card',
+            fee: doctor.consultationFee  // ✅ Add fee here
+          })
+        })
+
+        const appointmentData = await appointmentResponse.json()
+        
+        if (appointmentData.success) {
+          const appointmentId = appointmentData.data.appointment._id
+          
+          // Then initiate SSLCommerz payment
+          const paymentResponse = await paymentAPI.initiateSSLCommerzPayment({
+            appointmentId,
+            paymentMethod: 'card'
+          })
+          
+          if (paymentResponse.data.success && paymentResponse.data.data.redirectURL) {
+            setShowBookingModal(false)
+            // Redirect to SSLCommerz payment page
+            window.location.href = paymentResponse.data.data.redirectURL
+          } else {
+            alert(paymentResponse.data.message || 'Payment initiation failed')
+          }
+        } else {
+          alert(appointmentData.message || 'Failed to book appointment')
+        }
+      } catch (error) {
+        console.error('Booking error:', error)
+        alert('Failed to book appointment')
+      } finally {
+        setBookingLoading(false)
+      }
     }
-  }
 
   const renderStars = (rating) => {
     return (
@@ -541,7 +554,7 @@ export default function DoctorDetailsPage() {
         </div>
       </div>
       
-      {/* Booking Modal - Keep existing modal code */}
+      {/* Booking Modal */}
       {showBookingModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -730,6 +743,7 @@ export default function DoctorDetailsPage() {
                   <div className="bg-yellow-50 rounded-xl p-3 text-sm text-yellow-800">
                     <p className="font-medium mb-1">Payment</p>
                     <p>Total amount: ৳{doctor.consultationFee}</p>
+                    <p className="text-xs mt-1">You will be redirected to SSLCommerz secure payment gateway</p>
                   </div>
                   
                   <div className="flex gap-3">
