@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { format } from 'date-fns'
 import {
   Star,
   MapPin,
@@ -38,6 +37,32 @@ const showToast = {
     console.log('Success:', message)
     alert(message)
   }
+}
+
+// Helper function to format dates without date-fns
+const formatDate = (date, type = 'full') => {
+  if (type === 'full') {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+  }
+  if (type === 'short') {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+  }
+  if (type === 'monthDay') {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    })
+  }
+  return date.toLocaleDateString()
 }
 
 export default function DoctorDetailsPage() {
@@ -122,71 +147,73 @@ export default function DoctorDetailsPage() {
   }
   
   const handleBooking = async () => {
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      if (session.user?.role !== 'patient') {
-        alert('Only patients can book appointments')
-        return
-      }
-
-      if (!selectedSlot) {
-        alert('Please select a time slot')
-        return
-      }
-
-      setBookingLoading(true)
-      try {
-        const token = localStorage.getItem('token')
-        
-        // First, create appointment with fee included
-        const appointmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/v1/appointments`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            doctorId: doctor._id,
-            appointmentDate: selectedDate.toISOString().split('T')[0],
-            startTime: selectedSlot.time,
-            symptoms: symptoms,
-            type: selectedType,
-            paymentMethod: 'card',
-            fee: doctor.consultationFee  // ✅ Add fee here
-          })
-        })
-
-        const appointmentData = await appointmentResponse.json()
-        
-        if (appointmentData.success) {
-          const appointmentId = appointmentData.data.appointment._id
-          
-          // Then initiate SSLCommerz payment
-          const paymentResponse = await paymentAPI.initiateSSLCommerzPayment({
-            appointmentId,
-            paymentMethod: 'card'
-          })
-          
-          if (paymentResponse.data.success && paymentResponse.data.data.redirectURL) {
-            setShowBookingModal(false)
-            // Redirect to SSLCommerz payment page
-            window.location.href = paymentResponse.data.data.redirectURL
-          } else {
-            alert(paymentResponse.data.message || 'Payment initiation failed')
-          }
-        } else {
-          alert(appointmentData.message || 'Failed to book appointment')
-        }
-      } catch (error) {
-        console.error('Booking error:', error)
-        alert('Failed to book appointment')
-      } finally {
-        setBookingLoading(false)
-      }
+    if (!session) {
+      router.push('/login')
+      return
     }
+
+    if (session.user?.role !== 'patient') {
+      alert('Only patients can book appointments')
+      return
+    }
+
+    if (!selectedSlot) {
+      alert('Please select a time slot')
+      return
+    }
+
+    setBookingLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      
+      const appointmentData = {
+        doctorId: doctor._id,
+        appointmentDate: selectedDate.toISOString().split('T')[0],
+        startTime: selectedSlot.time,
+        symptoms: symptoms,
+        type: selectedType,
+        paymentMethod: 'card',
+        fee: doctor.consultationFee
+      }
+      
+      console.log('Booking appointment:', appointmentData)
+      
+      const appointmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'}/api/v1/appointments`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(appointmentData)
+      })
+
+      const appointmentResult = await appointmentResponse.json()
+      console.log('Appointment response:', appointmentResult)
+      
+      if (appointmentResult.success) {
+        const appointmentId = appointmentResult.data.appointment._id
+        
+        const paymentResponse = await paymentAPI.initiateSSLCommerzPayment({
+          appointmentId,
+          paymentMethod: 'card'
+        })
+        
+        if (paymentResponse.data.success && paymentResponse.data.data.redirectURL) {
+          setShowBookingModal(false)
+          window.location.href = paymentResponse.data.data.redirectURL
+        } else {
+          alert(paymentResponse.data.message || 'Payment initiation failed')
+        }
+      } else {
+        alert(appointmentResult.message || 'Failed to book appointment')
+      }
+    } catch (error) {
+      console.error('Booking error:', error)
+      alert(error.message || 'Failed to book appointment')
+    } finally {
+      setBookingLoading(false)
+    }
+  }
 
   const renderStars = (rating) => {
     return (
@@ -436,7 +463,7 @@ export default function DoctorDetailsPage() {
                               ))}
                             </div>
                             <span className="text-xs text-gray-400">
-                              {format(new Date(review.createdAt), 'MMM dd, yyyy')}
+                              {formatDate(new Date(review.createdAt), 'short')}
                             </span>
                           </div>
                         </div>
@@ -592,7 +619,7 @@ export default function DoctorDetailsPage() {
                       Selected Date
                     </label>
                     <p className="text-gray-900 font-medium">
-                      {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+                      {formatDate(selectedDate, 'full')}
                     </p>
                   </div>
                   
@@ -672,7 +699,7 @@ export default function DoctorDetailsPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Date:</span>
-                        <span className="text-gray-900">{format(selectedDate, 'MMM d, yyyy')}</span>
+                        <span className="text-gray-900">{formatDate(selectedDate, 'short')}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Time:</span>
@@ -725,7 +752,7 @@ export default function DoctorDetailsPage() {
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-3">
                         <CalendarIcon className="w-4 h-4 text-gray-400" />
-                        <span>{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
+                        <span>{formatDate(selectedDate, 'full')}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Clock className="w-4 h-4 text-gray-400" />

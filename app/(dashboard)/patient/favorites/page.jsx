@@ -16,7 +16,7 @@ import {
   Search,
   X
 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils/helpers'
+// import { formatCurrency } from '@/lib/utils/helpers'
 import { patientAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
 
