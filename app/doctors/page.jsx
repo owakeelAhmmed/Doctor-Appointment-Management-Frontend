@@ -8,6 +8,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { publicAPI } from '../lib/api/client'
+import Navbar from '../components/share/Navbar'
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([])
@@ -119,6 +120,7 @@ const fetchFilters = async () => {
 
   return (
     <div className="min-h-screen bg-black">
+      <Navbar />
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-green-700 to-green-900 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

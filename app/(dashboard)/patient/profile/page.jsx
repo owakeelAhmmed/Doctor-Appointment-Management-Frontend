@@ -1,3 +1,5 @@
+// app/(dashboard)/patient/profile/page.jsx
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -23,7 +25,7 @@ import {
   Upload,
   Trash2
 } from 'lucide-react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import { patientAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
 
@@ -50,7 +52,7 @@ const CustomSelect = ({ options, value, onChange, placeholder, disabled, label }
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent flex items-center justify-between ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-900 cursor-pointer'
+        className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent flex items-center justify-between ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-900 cursor-pointer'
           }`}
         disabled={disabled}
       >
@@ -58,7 +60,7 @@ const CustomSelect = ({ options, value, onChange, placeholder, disabled, label }
         <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && !disabled && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {options.map((option) => (
             <button
               key={option.value}
@@ -107,7 +109,7 @@ const RELATION_OPTIONS = [
 ]
 
 export default function ProfilePage() {
-  const { data: session } = useSession()
+  const { user } = useAuth()  // 🔥 Use useAuth instead of useSession
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -186,7 +188,7 @@ export default function ProfilePage() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('ownerType', 'users')
-      formData.append('ownerId', profileData?.user?._id || session?.user?.id)
+      formData.append('ownerId', profileData?.user?._id || user?.id)
       formData.append('folder', 'profile-images')
       formData.append('tag', 'profile')
 
@@ -349,7 +351,7 @@ export default function ProfilePage() {
                 setIsEditing(false)
                 reset()
               }}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
               <span>Cancel</span>
@@ -359,7 +361,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Card */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-300 overflow-hidden">
         {/* Cover Photo */}
         <div className="h-32 bg-gradient-to-r from-green-600 to-green-700"></div>
 
@@ -465,7 +467,7 @@ export default function ProfilePage() {
                       <input
                         {...register('fullName')}
                         disabled={!isEditing}
-                        className={`w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                        className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                           }`}
                       />
                     </div>
@@ -479,22 +481,22 @@ export default function ProfilePage() {
                       <input
                         {...register('email')}
                         disabled
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
                       />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Emergency Contact Phone <span className="text-gray-400 text-xs">(Optional)</span>
+                      Phone
                     </label>
-                    <input
-                      {...register('emergencyContactPhone')}
-                      disabled={!isEditing}
-                      placeholder="e.g., 01712345678 or 8801712345678"
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
-                        }`}
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Format: 01XXXXXXXXX or 8801XXXXXXXXX</p>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        {...register('phone')}
+                        disabled
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -506,7 +508,7 @@ export default function ProfilePage() {
                         type="date"
                         {...register('dateOfBirth')}
                         disabled={!isEditing}
-                        className={`w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                        className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                           }`}
                       />
                     </div>
@@ -520,7 +522,7 @@ export default function ProfilePage() {
                       <input
                         {...register('street')}
                         disabled={!isEditing}
-                        className={`w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                        className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                           }`}
                       />
                     </div>
@@ -532,7 +534,7 @@ export default function ProfilePage() {
                     <input
                       {...register('city')}
                       disabled={!isEditing}
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                         }`}
                     />
                   </div>
@@ -565,7 +567,7 @@ export default function ProfilePage() {
                     <input
                       {...register('emergencyContactName')}
                       disabled={!isEditing}
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                         }`}
                     />
                   </div>
@@ -577,7 +579,7 @@ export default function ProfilePage() {
                     <input
                       {...register('emergencyContactPhone')}
                       disabled={!isEditing}
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                         }`}
                     />
                   </div>
@@ -601,7 +603,7 @@ export default function ProfilePage() {
                       {...register('allergies')}
                       disabled={!isEditing}
                       rows={3}
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                         }`}
                       placeholder="e.g., Penicillin, Dust, Pollen"
                     />
@@ -615,7 +617,7 @@ export default function ProfilePage() {
                       {...register('chronicDiseases')}
                       disabled={!isEditing}
                       rows={3}
-                      className={`w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${isEditing ? 'bg-white text-gray-900' : 'bg-gray-50 text-gray-500'
                         }`}
                       placeholder="e.g., Diabetes, Hypertension, Asthma"
                     />

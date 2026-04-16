@@ -1,22 +1,24 @@
+// app/(dashboard)/doctor/page.jsx
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import { motion } from 'framer-motion'
 import {
   Calendar, Clock, User, DollarSign, Star, TrendingUp,
   Users, Activity, CheckCircle, AlertCircle, FileCheck,
   Upload, Shield, Award, Building, Phone, Mail, MapPin,
   Lock, AlertTriangle, Send, Clock as ClockIcon, CheckCircle2,
-  FileText, UserCheck, Briefcase, RefreshCw
+  FileText, UserCheck, Briefcase, RefreshCw, Eye, ChevronRight
 } from 'lucide-react'
 import { doctorAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
 
 export default function DoctorDashboard() {
   const router = useRouter()
-  const { data: session, update: updateSession } = useSession()
+  const { user, isAuthenticated, loading: authLoading } = useAuth()
   const [dashboardData, setDashboardData] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [doctorStatus, setDoctorStatus] = useState(null)
@@ -43,7 +45,6 @@ export default function DoctorDashboard() {
   const checkDoctorStatus = useCallback(async () => {
     setIsLoading(true)
     try {
-      // Get verification status
       const statusResponse = await doctorAPI.getVerificationStatus()
       const statusData = statusResponse?.data?.data || statusResponse?.data
       setVerificationInfo(statusData)
@@ -64,7 +65,6 @@ export default function DoctorDashboard() {
         profileCompletionPercentage: statusData?.profileCompletionPercentage || 0
       })
       
-      // If verified, load full dashboard
       if (isVerified) {
         await loadDashboard()
       } else {
@@ -73,7 +73,6 @@ export default function DoctorDashboard() {
       
     } catch (error) {
       console.error('Error checking doctor status:', error)
-      // If error, assume not verified
       setDoctorStatus({ 
         status: 'pending', 
         isVerified: false,
@@ -96,8 +95,26 @@ export default function DoctorDashboard() {
     return new Intl.NumberFormat('bn-BD', { style: 'currency', currency: 'BDT' }).format(amount)
   }
 
+  const formatDate = (date) => {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const formatTime = (time) => {
+    if (!time) return ''
+    const [hours, minutes] = time.split(':')
+    const hour = parseInt(hours)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const hour12 = hour % 12 || 12
+    return `${hour12}:${minutes} ${ampm}`
+  }
+
   // Loading State
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
@@ -114,7 +131,7 @@ export default function DoctorDashboard() {
         <p className="text-gray-500">Loading your dashboard...</p>
         <button 
           onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50"
+          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors cursor-pointer"
         >
           <RefreshCw className="w-4 h-4 inline mr-2" />
           Refresh
@@ -127,10 +144,9 @@ export default function DoctorDashboard() {
   if (doctorStatus?.isProfileSubmitted && !doctorStatus?.isVerified && !doctorStatus?.isDocumentSubmitted) {
     return (
       <div className="space-y-6">
-        {/* Welcome Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+            Welcome, {user?.name || user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Send className="w-4 h-4 text-green-600" />
@@ -138,7 +154,6 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Success Message Card */}
         <div className="bg-green-50 rounded-xl p-6 border border-green-200">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
@@ -149,7 +164,7 @@ export default function DoctorDashboard() {
               <p className="text-green-700 mt-1">
                 Your doctor profile has been submitted. Now please upload your verification documents to complete the process.
               </p>
-              <div className="mt-4 bg-white rounded-lg p-4">
+              <div className="mt-4 bg-white rounded-lg p-4 border border-gray-300">
                 <h3 className="font-semibold text-gray-800 mb-2">📋 Next Steps:</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
@@ -172,7 +187,7 @@ export default function DoctorDashboard() {
               </div>
               <button
                 onClick={() => router.push('/doctor/documents')}
-                className="mt-4 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex items-center gap-2"
+                className="mt-4 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 Upload Documents Now
@@ -181,7 +196,6 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Info Card */}
         <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
           <div className="flex items-start gap-3">
             <ClockIcon className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -202,10 +216,9 @@ export default function DoctorDashboard() {
   if ((doctorStatus?.isDocumentSubmitted || doctorStatus?.isUnderReview) && !doctorStatus?.isVerified) {
     return (
       <div className="space-y-6">
-        {/* Welcome Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+            Welcome, {user?.name || user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <ClockIcon className="w-4 h-4 text-blue-600" />
@@ -213,7 +226,6 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Waiting for Admin Card */}
         <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
@@ -224,7 +236,7 @@ export default function DoctorDashboard() {
               <p className="text-blue-700 mt-1">
                 Your documents have been submitted successfully! Our admin team is now reviewing your application.
               </p>
-              <div className="mt-4 bg-white rounded-lg p-4">
+              <div className="mt-4 bg-white rounded-lg p-4 border border-gray-300">
                 <h3 className="font-semibold text-gray-800 mb-3">📊 Verification Progress:</h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -258,7 +270,6 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Info Card */}
         <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
@@ -278,10 +289,9 @@ export default function DoctorDashboard() {
   if (!doctorStatus?.isProfileSubmitted && !doctorStatus?.isDocumentSubmitted && !doctorStatus?.isVerified) {
     return (
       <div className="space-y-6">
-        {/* Welcome Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+            Welcome, {user?.name || user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <AlertTriangle className="w-4 h-4 text-yellow-600" />
@@ -289,7 +299,6 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Verification Progress Card */}
         <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -315,7 +324,7 @@ export default function DoctorDashboard() {
                   <span className="text-sm text-yellow-600 font-medium">Professional Details (Required)</span>
                   <button
                     onClick={() => router.push('/doctor/complete-profile')}
-                    className="ml-auto text-xs text-green-600 hover:text-green-700"
+                    className="ml-auto text-xs text-green-600 hover:text-green-700 cursor-pointer"
                   >
                     Complete Now →
                   </button>
@@ -329,19 +338,19 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => router.push('/doctor/complete-profile')}
-            className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer"
+            className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-pointer group"
           >
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
               <User className="w-5 h-5 text-green-600" />
             </div>
-            <div className="text-left">
+            <div className="text-left flex-1">
               <h3 className="font-medium text-gray-900">Complete Profile</h3>
               <p className="text-xs text-gray-500">Add your specialization and experience</p>
             </div>
+            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
           </button>
         </div>
       </div>
@@ -356,7 +365,7 @@ export default function DoctorDashboard() {
         <p className="text-gray-500">Loading dashboard data...</p>
         <button 
           onClick={checkDoctorStatus}
-          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50"
+          className="mt-4 px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors cursor-pointer"
         >
           <RefreshCw className="w-4 h-4 inline mr-2" />
           Retry
@@ -366,6 +375,8 @@ export default function DoctorDashboard() {
   }
 
   const stats = dashboardData.stats || {}
+  const upcomingAppointments = dashboardData.upcomingAppointments || []
+  const recentPatients = dashboardData.recentPatients || []
 
   return (
     <div className="space-y-6">
@@ -373,7 +384,7 @@ export default function DoctorDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, Dr. {session?.user?.name || session?.user?.fullName || 'Doctor'}
+            Welcome, {user?.name || user?.fullName || 'Doctor'}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Shield className="w-4 h-4 text-green-600" />
@@ -386,22 +397,22 @@ export default function DoctorDashboard() {
         <div className="flex gap-2">
           <button 
             onClick={() => router.push('/doctor/schedule')}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer transition-all"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all cursor-pointer border border-gray-300"
           >
             Update Schedule
           </button>
           <button 
             onClick={() => router.push('/doctor/appointments')}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-all"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all cursor-pointer"
           >
             View Appointments
           </button>
         </div>
       </div>
 
-      {/* Stats Cards - Full Access */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-pointer" onClick={() => router.push('/doctor/appointments/today')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Today's Appointments</p>
@@ -411,7 +422,7 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-pointer" onClick={() => router.push('/doctor/patients')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total Patients</p>
@@ -421,7 +432,7 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-pointer" onClick={() => router.push('/doctor/earnings')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">This Month Earnings</p>
@@ -431,7 +442,7 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-pointer" onClick={() => router.push('/doctor/reviews')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Rating</p>
@@ -447,52 +458,162 @@ export default function DoctorDashboard() {
       </div>
 
       {/* Upcoming Appointments */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b flex justify-between items-center">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Upcoming Appointments</h2>
           <button 
             onClick={() => router.push('/doctor/appointments')}
-            className="text-sm text-green-600 hover:text-green-700 cursor-pointer"
+            className="text-sm text-green-600 hover:text-green-700 cursor-pointer flex items-center gap-1"
           >
-            View All
+            View All <ChevronRight className="w-4 h-4" />
           </button>
         </div>
         <div className="p-6">
-          {dashboardData.upcomingAppointments?.length === 0 ? (
+          {upcomingAppointments.length === 0 ? (
             <div className="text-center py-8">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No upcoming appointments</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {dashboardData.upcomingAppointments?.slice(0, 5).map((apt) => (
-                <div key={apt._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              {upcomingAppointments.slice(0, 5).map((apt) => (
+                <div 
+                  key={apt._id} 
+                  onClick={() => router.push(`/doctor/appointments/${apt._id}`)}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+                >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-green-600" />
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                      <User className="w-6 h-6 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{apt.patient?.user?.fullName || 'Patient'}</p>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Calendar className="w-3 h-3" />
-                        <span>{apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString('bn-BD') : 'Date TBD'}</span>
-                        <Clock className="w-3 h-3" />
-                        <span>{apt.startTime || 'Time TBD'}</span>
+                      <p className="font-semibold text-gray-900">{apt.patientInfo?.name || apt.patient?.user?.fullName || 'Patient'}</p>
+                      <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(apt.appointmentDate)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(apt.startTime)}
+                        </span>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          apt.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                          apt.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {apt.status}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    apt.status === 'confirmed' ? 'bg-green-100 text-green-600' :
-                    apt.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {apt.status}
-                  </span>
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Recent Patients */}
+      {recentPatients.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Patients</h2>
+            <button 
+              onClick={() => router.push('/doctor/patients')}
+              className="text-sm text-green-600 hover:text-green-700 cursor-pointer flex items-center gap-1"
+            >
+              View All <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {recentPatients.slice(0, 5).map((patient, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => router.push(`/doctor/patients/${patient._id}`)}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                      <User className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{patient.user?.fullName || 'Patient'}</p>
+                      <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Activity className="w-3 h-3" />
+                          {patient.visitCount || 0} visits
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Last: {formatDate(patient.lastVisitDate)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button
+          onClick={() => router.push('/doctor/schedule')}
+          className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+        >
+          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+            <Clock className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium text-gray-900 text-sm">Manage</p>
+            <p className="text-xs text-gray-500">Schedule</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => router.push('/doctor/earnings')}
+          className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+        >
+          <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center group-hover:bg-yellow-200 transition-colors">
+            <DollarSign className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium text-gray-900 text-sm">View</p>
+            <p className="text-xs text-gray-500">Earnings</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => router.push('/doctor/patients')}
+          className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+        >
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+            <Users className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium text-gray-900 text-sm">View All</p>
+            <p className="text-xs text-gray-500">Patients</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => router.push('/doctor/reviews')}
+          className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-300 hover:shadow-md hover:border-green-300 transition-all cursor-pointer group"
+        >
+          <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center group-hover:bg-pink-200 transition-colors">
+            <Star className="w-5 h-5 text-pink-600" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium text-gray-900 text-sm">Check</p>
+            <p className="text-xs text-gray-500">Reviews</p>
+          </div>
+        </button>
       </div>
     </div>
   )

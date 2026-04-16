@@ -51,7 +51,7 @@ export function Providers({ children }) {
   )
 }
 
-// Pure localStorage Auth Provider (No NextAuth)
+// Pure localStorage Auth Provider (No NextAuth) - NO PROTECTION
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -99,48 +99,6 @@ function AuthProvider({ children }) {
     initAuth()
   }, [])
 
-  // Protect routes based on authentication
-  useEffect(() => {
-    if (loading) return
-
-    // Public routes (no auth required)
-    const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password']
-    const isPublicRoute = publicRoutes.some(route => pathname === route) ||
-                          pathname?.startsWith('/doctors/public') ||
-                          (pathname?.startsWith('/doctors') && !pathname?.startsWith('/doctor'))
-
-    if (!user && !isPublicRoute) {
-      router.push('/login')
-    }
-  }, [user, loading, pathname, router])
-
-  // Redirect based on role after login
-  useEffect(() => {
-    if (!user || loading) return
-
-    const role = user.role
-    const verificationStatus = user.verificationStatus
-
-    // Don't redirect if already on correct path
-    if (pathname?.startsWith(`/${role}`)) return
-
-    // Role-based redirects
-    if (role === 'doctor') {
-      if (verificationStatus === 'pending') {
-        router.push('/doctor/complete-profile')
-      } else if (verificationStatus === 'profile_submitted') {
-        router.push('/doctor/documents')
-      } else {
-        router.push('/doctor')
-      }
-    } 
-    else if (role === 'admin' || role === 'superadmin') {
-      router.push('/admin')
-    }
-    else if (role === 'patient') {
-      router.push('/patient')
-    }
-  }, [user, loading, pathname, router])
 
   // Login function
   const login = async (email, password) => {

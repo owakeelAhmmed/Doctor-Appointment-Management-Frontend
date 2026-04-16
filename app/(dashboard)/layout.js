@@ -55,7 +55,8 @@ const getMenuConfig = (role) => {
         { name: 'My Patients', href: '/doctor/patients', icon: Users },
         { name: 'Schedule', href: '/doctor/schedule', icon: Clock },
         { name: 'Earnings', href: '/doctor/earnings', icon: DollarSign },
-        { name: 'Reviews', href: '/doctor/reviews', icon: Star },
+        // { name: 'Reviews', href: '/doctor/reviews', icon: Star },
+        { name: 'Complete Profile', href: '/doctor/complete-profile', icon: Shield },
         { name: 'Profile', href: '/doctor/profile', icon: User },
       ]
     }
@@ -141,8 +142,10 @@ export default function DashboardLayout({ children }) {
       >
         {/* Logo */}
         <div className="p-5 border-b border-gray-200">
-          <h1 className="text-lg font-bold text-green-600">Doccure</h1>
+          <Link href="/">
+            <h1 className="text-lg font-bold text-green-600">Doccure</h1>
           <p className="text-xs text-gray-500 mt-0.5 capitalize">{userRole} Panel</p>
+          </Link>
         </div>
 
         {/* User Info */}

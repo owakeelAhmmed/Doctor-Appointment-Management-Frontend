@@ -1,3 +1,5 @@
+// app/(dashboard)/doctor/documents/page.jsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -5,7 +7,8 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Upload, FileText, CheckCircle, AlertCircle, X,
-  Camera, Shield, Award, Building, Phone, Mail, MapPin
+  Camera, Shield, Award, Building, Phone, Mail, MapPin,
+  Send
 } from 'lucide-react'
 import { doctorAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
@@ -42,10 +45,18 @@ export default function DoctorDocumentsPage() {
   const fetchDoctorProfile = async () => {
     try {
       const response = await doctorAPI.getProfile()
-      setDoctor(response.data?.doctor)
+      
+      let doctorData = null
+      if (response?.data?.success) {
+        doctorData = response.data.data.doctor
+      } else if (response?.success) {
+        doctorData = response.data.doctor
+      }
+      
+      setDoctor(doctorData)
       
       // Check existing documents
-      const existingDocs = response.data?.doctor?.documents || {}
+      const existingDocs = doctorData?.documents || {}
       setUploadStatus(existingDocs)
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -68,12 +79,25 @@ export default function DoctorDocumentsPage() {
       formData.append(key, file)
       
       const response = await doctorAPI.uploadDocuments(formData)
-      if (response.success) {
-        setUploadStatus(prev => ({ ...prev, [key]: { verified: false, url: URL.createObjectURL(file) } }))
+      
+      if (response?.success || response?.data?.success) {
+        // Create a local URL for preview
+        const localUrl = URL.createObjectURL(file)
+        setUploadStatus(prev => ({ 
+          ...prev, 
+          [key]: { 
+            verified: false, 
+            url: localUrl,
+            uploadedAt: new Date().toISOString()
+          } 
+        }))
         showToast.success(`${requiredDocuments.find(d => d.key === key)?.label} uploaded successfully`)
         setDocuments(prev => ({ ...prev, [key]: null }))
+      } else {
+        showToast.error(response?.message || `Failed to upload ${requiredDocuments.find(d => d.key === key)?.label}`)
       }
     } catch (error) {
+      console.error('Upload error:', error)
       showToast.error(`Failed to upload ${requiredDocuments.find(d => d.key === key)?.label}`)
     } finally {
       setIsLoading(false)
@@ -97,11 +121,15 @@ export default function DoctorDocumentsPage() {
         documentsSubmitted: true,
         verificationStatus: 'document_verification'
       })
-      if (response.success) {
+      
+      if (response?.success || response?.data?.success) {
         showToast.success('Documents submitted successfully! Waiting for verification.')
-        setTimeout(() => router.push('/doctor/dashboard'), 2000)
+        setTimeout(() => router.push('/doctor'), 2000)
+      } else {
+        showToast.error(response?.message || 'Failed to submit documents')
       }
     } catch (error) {
+      console.error('Submit error:', error)
       showToast.error('Failed to submit documents')
     } finally {
       setIsLoading(false)
@@ -117,6 +145,11 @@ export default function DoctorDocumentsPage() {
     }
     return <Upload className="w-5 h-5 text-gray-400" />
   }
+
+  // Check if all required documents are uploaded
+  const allRequiredUploaded = requiredDocuments
+    .filter(doc => doc.required)
+    .every(doc => uploadStatus[doc.key]?.url)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -147,7 +180,7 @@ export default function DoctorDocumentsPage() {
             key={doc.key}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl p-5 shadow-sm border"
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-300"
           >
             <div className="flex items-start justify-between mb-3">
               <div>
@@ -163,16 +196,21 @@ export default function DoctorDocumentsPage() {
               <div className="mt-3">
                 <div className="flex items-center gap-2 text-sm">
                   {uploadStatus[doc.key]?.verified ? (
-                    <span className="text-green-600">Verified ✓</span>
+                    <span className="text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" /> Verified ✓
+                    </span>
                   ) : (
-                    <span className="text-yellow-600">Pending Verification</span>
+                    <span className="text-yellow-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" /> Pending Verification
+                    </span>
                   )}
                 </div>
                 {uploadStatus[doc.key]?.url && (
                   <a 
                     href={uploadStatus[doc.key].url} 
                     target="_blank" 
-                    className="text-xs text-primary-600 hover:underline mt-1 inline-block"
+                    rel="noopener noreferrer"
+                    className="text-xs text-green-600 hover:underline mt-1 inline-block"
                   >
                     View Document
                   </a>
@@ -180,8 +218,8 @@ export default function DoctorDocumentsPage() {
               </div>
             ) : (
               <div className="mt-3">
-                <label className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer
-                  ${documents[doc.key] ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-primary-500'}`}
+                <label className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-all
+                  ${documents[doc.key] ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-500 hover:bg-green-50'}`}
                 >
                   <input
                     type="file"
@@ -193,7 +231,7 @@ export default function DoctorDocumentsPage() {
                     {documents[doc.key] ? (
                       <>
                         <FileText className="w-8 h-8 text-green-500 mx-auto mb-1" />
-                        <p className="text-sm text-green-600">{documents[doc.key].name}</p>
+                        <p className="text-sm text-green-600 font-medium">{documents[doc.key].name}</p>
                         <p className="text-xs text-gray-500 mt-1">
                           {(documents[doc.key].size / 1024 / 1024).toFixed(2)} MB
                         </p>
@@ -212,14 +250,14 @@ export default function DoctorDocumentsPage() {
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => setDocuments(prev => ({ ...prev, [doc.key]: null }))}
-                      className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+                      className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       Change
                     </button>
                     <button
                       onClick={() => uploadDocument(doc.key)}
                       disabled={isLoading}
-                      className="flex-1 px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                      className="flex-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
                       Upload
                     </button>
@@ -231,16 +269,58 @@ export default function DoctorDocumentsPage() {
         ))}
       </div>
 
+      {/* Progress Summary */}
+      <div className="bg-gray-50 rounded-xl p-4 border border-gray-300">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-700">Upload Progress</span>
+          <span className="text-sm font-medium text-green-600">
+            {requiredDocuments.filter(doc => doc.required && uploadStatus[doc.key]?.url).length} / {requiredDocuments.filter(doc => doc.required).length} Required
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            className="bg-green-600 h-2 rounded-full transition-all duration-500"
+            style={{ 
+              width: `${(requiredDocuments.filter(doc => doc.required && uploadStatus[doc.key]?.url).length / requiredDocuments.filter(doc => doc.required).length) * 100}%` 
+            }}
+          />
+        </div>
+      </div>
+
       {/* Submit Button */}
       <div className="flex justify-end pt-4">
         <button
           onClick={submitAllDocuments}
-          disabled={isLoading}
-          className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          disabled={isLoading || !allRequiredUploaded}
+          className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 cursor-pointer ${
+            allRequiredUploaded
+              ? 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
         >
-          {isLoading ? 'Submitting...' : 'Submit Documents for Verification'}
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+              Submitting...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Submit Documents for Verification
+            </>
+          )}
         </button>
       </div>
+
+      {/* Info Box */}
+      {!allRequiredUploaded && (
+        <div className="bg-yellow-50 rounded-xl p-3 border border-yellow-200">
+          <div className="flex items-center gap-2 text-sm text-yellow-700">
+            <AlertCircle className="w-4 h-4" />
+            <span>Please upload all required documents before submitting.</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

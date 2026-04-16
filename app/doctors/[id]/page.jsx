@@ -1,10 +1,12 @@
+// app/(public)/doctors/[id]/page.jsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import {
   Star,
   MapPin,
@@ -39,7 +41,7 @@ const showToast = {
   }
 }
 
-// Helper function to format dates without date-fns
+// Helper function to format dates
 const formatDate = (date, type = 'full') => {
   if (type === 'full') {
     return date.toLocaleDateString('en-US', { 
@@ -68,7 +70,7 @@ const formatDate = (date, type = 'full') => {
 export default function DoctorDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  const { data: session } = useSession()
+  const { isAuthenticated, user, loading: authLoading } = useAuth()
   const [doctor, setDoctor] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -105,6 +107,9 @@ export default function DoctorDetailsPage() {
       }
       
       if (doctorData) {
+        // 🔥 ডক্টর আইডি চেক করুন
+        console.log('Doctor ID from API:', doctorData._id)
+        console.log('Doctor user ID:', doctorData.user?._id)
         setDoctor(doctorData)
       } else {
         showToast.error('Failed to load doctor details')
@@ -146,13 +151,17 @@ export default function DoctorDetailsPage() {
     }
   }
   
+  // 🔥 বুকিং হ্যান্ডলার - সঠিক ডক্টর আইডি সহ
   const handleBooking = async () => {
-    if (!session) {
-      router.push('/login')
+    // চেক করুন ইউজার লগইন করেছে কিনা
+    if (!isAuthenticated) {
+      const currentUrl = `/doctors/${params.id}`
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
       return
     }
 
-    if (session.user?.role !== 'patient') {
+    // চেক করুন ইউজার পেশেন্ট কিনা
+    if (user?.role !== 'patient') {
       alert('Only patients can book appointments')
       return
     }
@@ -166,8 +175,13 @@ export default function DoctorDetailsPage() {
     try {
       const token = localStorage.getItem('token')
       
+      // 🔥 গুরুত্বপূর্ণ: doctor._id ব্যবহার করুন, doctor.user?._id না
+      // ডাটাবেসে doctorId ফিল্ডে ইউজার আইডি স্টোর হয়
+      const doctorUserId = doctor.user?._id || doctor._id
+      console.log('Using doctor ID for booking:', doctorUserId)
+      
       const appointmentData = {
-        doctorId: doctor._id,
+        doctorId: doctorUserId,  // 🔥 এটা সঠিক হতে হবে
         appointmentDate: selectedDate.toISOString().split('T')[0],
         startTime: selectedSlot.time,
         symptoms: symptoms,
@@ -215,6 +229,21 @@ export default function DoctorDetailsPage() {
     }
   }
 
+  const openBookingModal = () => {
+    if (!isAuthenticated) {
+      const currentUrl = `/doctors/${params.id}`
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
+      return
+    }
+    
+    if (user?.role !== 'patient') {
+      alert('Only patients can book appointments')
+      return
+    }
+    
+    setShowBookingModal(true)
+  }
+
   const renderStars = (rating) => {
     return (
       <div className="flex items-center gap-0.5">
@@ -241,7 +270,7 @@ export default function DoctorDetailsPage() {
     return `${hour12}:${minutes} ${ampm}`
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 py-12">
@@ -260,7 +289,7 @@ export default function DoctorDetailsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-300 p-12">
             <Stethoscope className="w-20 h-20 text-gray-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Doctor not found</h2>
             <p className="text-gray-500 mb-6">The doctor you're looking for doesn't exist or is not verified.</p>
@@ -335,13 +364,13 @@ export default function DoctorDetailsPage() {
             </div>
             
             {/* Fee Card */}
-            <div className="bg-white rounded-2xl p-5 text-center min-w-[200px] shadow-lg">
+            <div className="bg-white rounded-2xl p-5 text-center min-w-[200px] shadow-lg border border-gray-300">
               <p className="text-sm text-gray-500">Consultation Fee</p>
               <p className="text-3xl font-bold text-gray-900">৳{doctor.consultationFee || 0}</p>
               <p className="text-xs text-gray-400 mt-1">Follow-up: ৳{doctor.followUpFee || 0}</p>
               <button
-                onClick={() => setShowBookingModal(true)}
-                className="mt-4 w-full px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
+                onClick={openBookingModal}
+                className="mt-4 w-full px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium cursor-pointer"
               >
                 <CalendarIcon className="w-4 h-4" />
                 Book Appointment
@@ -356,7 +385,7 @@ export default function DoctorDetailsPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* About Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl border border-gray-300 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Stethoscope className="w-5 h-5 text-green-600" />
                 About
@@ -368,7 +397,7 @@ export default function DoctorDetailsPage() {
             
             {/* Qualifications Card */}
             {doctor.qualifications && doctor.qualifications.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl border border-gray-300 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <GraduationCap className="w-5 h-5 text-green-600" />
                   Qualifications & Education
@@ -393,7 +422,7 @@ export default function DoctorDetailsPage() {
             
             {/* Workplace Card */}
             {doctor.currentWorkplace && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl border border-gray-300 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Briefcase className="w-5 h-5 text-green-600" />
                   Current Workplace
@@ -416,7 +445,7 @@ export default function DoctorDetailsPage() {
             
             {/* Reviews Card */}
             {doctor.reviews && doctor.reviews.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl border border-gray-300 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                     <MessageCircle className="w-5 h-5 text-green-600" />
@@ -484,7 +513,7 @@ export default function DoctorDetailsPage() {
           
           {/* Sidebar - Schedule Card */}
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 sticky top-24">
+            <div className="bg-white rounded-2xl border border-gray-300 p-6 sticky top-24">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-green-600" />
                 Available Schedule
@@ -500,7 +529,7 @@ export default function DoctorDetailsPage() {
                   value={selectedDate.toISOString().split('T')[0]}
                   onChange={(e) => setSelectedDate(new Date(e.target.value))}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
                 />
               </div>
               
@@ -521,7 +550,7 @@ export default function DoctorDetailsPage() {
                         className={`p-2.5 text-sm rounded-xl border transition-all cursor-pointer ${
                           selectedSlot?.time === slot.time
                             ? 'bg-green-600 text-white border-green-600 shadow-md'
-                            : 'border-gray-200 text-gray-700 hover:border-green-400 hover:bg-green-50'
+                            : 'border-gray-300 text-gray-700 hover:border-green-400 hover:bg-green-50'
                         }`}
                       >
                         {formatTime(slot.time)}
@@ -529,7 +558,7 @@ export default function DoctorDetailsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-300">
                     <Clock className="w-10 h-10 mx-auto mb-2 text-gray-300" />
                     <p className="text-sm text-gray-500">No available slots</p>
                     <p className="text-xs text-gray-400 mt-1">Please select another date</p>
@@ -551,7 +580,7 @@ export default function DoctorDetailsPage() {
                         className={`p-2.5 text-sm rounded-xl border transition flex items-center justify-center gap-2 cursor-pointer ${
                           selectedType === type
                             ? 'bg-green-600 text-white border-green-600'
-                            : 'border-gray-200 text-gray-700 hover:border-green-400'
+                            : 'border-gray-300 text-gray-700 hover:border-green-400'
                         }`}
                       >
                         {type === 'video' && <Video className="w-4 h-4" />}
@@ -632,10 +661,10 @@ export default function DoctorDetailsPage() {
                         <button
                           key={idx}
                           onClick={() => setSelectedSlot(slot)}
-                          className={`p-2 text-sm rounded-xl border transition ${
+                          className={`p-2 text-sm rounded-xl border transition cursor-pointer ${
                             selectedSlot?.time === slot.time
                               ? 'bg-green-600 text-white border-green-600'
-                              : 'border-gray-200 hover:border-green-400'
+                              : 'border-gray-300 hover:border-green-400'
                           }`}
                         >
                           {formatTime(slot.time)}
@@ -647,7 +676,7 @@ export default function DoctorDetailsPage() {
                   <button
                     onClick={() => setBookingStep(2)}
                     disabled={!selectedSlot}
-                    className="w-full py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                    className="w-full py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition cursor-pointer"
                   >
                     Continue
                   </button>
@@ -665,10 +694,10 @@ export default function DoctorDetailsPage() {
                         <button
                           key={type}
                           onClick={() => setSelectedType(type)}
-                          className={`p-2 text-sm rounded-xl border transition ${
+                          className={`p-2 text-sm rounded-xl border transition cursor-pointer ${
                             selectedType === type
                               ? 'bg-green-600 text-white border-green-600'
-                              : 'border-gray-200 hover:border-green-400'
+                              : 'border-gray-300 hover:border-green-400'
                           }`}
                         >
                           {type === 'video' ? 'Video Call' : type === 'phone' ? 'Phone Call' : 'In-Person'}
@@ -685,7 +714,7 @@ export default function DoctorDetailsPage() {
                       value={symptoms}
                       onChange={(e) => setSymptoms(e.target.value)}
                       rows={4}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"
                       placeholder="Please describe your symptoms..."
                     />
                   </div>
@@ -715,13 +744,13 @@ export default function DoctorDetailsPage() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setBookingStep(1)}
-                      className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition"
+                      className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition cursor-pointer"
                     >
                       Back
                     </button>
                     <button
                       onClick={() => setBookingStep(3)}
-                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
+                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition cursor-pointer"
                     >
                       Review
                     </button>
@@ -776,14 +805,14 @@ export default function DoctorDetailsPage() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setBookingStep(2)}
-                      className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition"
+                      className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition cursor-pointer"
                     >
                       Back
                     </button>
                     <button
                       onClick={handleBooking}
                       disabled={bookingLoading}
-                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 transition"
+                      className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 transition cursor-pointer"
                     >
                       {bookingLoading ? (
                         <>

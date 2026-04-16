@@ -1,7 +1,9 @@
+// app/(dashboard)/doctor/schedule/view/page.jsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import Link from 'next/link'
 import {
   Calendar,
@@ -19,7 +21,7 @@ const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 
 const DAY_LABELS = { sunday: 'Sunday', monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday' }
 
 export default function ViewSchedulePage() {
-  const { data: session } = useSession()
+  const { user } = useAuth()  // 🔥 useAuth ব্যবহার করুন
   const [schedule, setSchedule] = useState([])
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [loading, setLoading] = useState(true)
@@ -31,8 +33,11 @@ export default function ViewSchedulePage() {
   const fetchSchedule = async () => {
     try {
       const response = await doctorAPI.getProfile()
-      if (response.data.success) {
+      if (response?.data?.success) {
         const availableDays = response.data.data.doctor.availableDays || []
+        setSchedule(availableDays)
+      } else if (response?.success) {
+        const availableDays = response.data.doctor.availableDays || []
         setSchedule(availableDays)
       }
     } catch (error) {
@@ -102,7 +107,7 @@ export default function ViewSchedulePage() {
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
+      <div className="flex items-center justify-between bg-white rounded-xl border border-gray-300 p-3">
         <button
           onClick={() => {
             const newWeek = new Date(currentWeek)
@@ -140,7 +145,7 @@ export default function ViewSchedulePage() {
             <div
               key={dayName}
               className={`bg-white rounded-xl border ${
-                isToday ? 'border-green-500 ring-2 ring-green-100' : 'border-gray-200'
+                isToday ? 'border-green-500 ring-2 ring-green-100' : 'border-gray-300'
               } overflow-hidden`}
             >
               <div className={`p-3 text-center border-b border-gray-200 ${
@@ -176,7 +181,7 @@ export default function ViewSchedulePage() {
                     }
                     const Icon = getIcon()
                     return (
-                      <div key={idx} className="p-2 bg-gray-50 rounded-lg text-center border border-gray-200">
+                      <div key={idx} className="p-2 bg-gray-50 rounded-lg text-center border border-gray-300">
                         <p className="text-sm font-medium text-gray-900">
                           {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                         </p>
@@ -196,7 +201,7 @@ export default function ViewSchedulePage() {
       </div>
 
       {/* Summary Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-white rounded-xl border border-gray-300 p-5">
         <h3 className="font-semibold text-gray-900 mb-3">Weekly Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-green-50 rounded-lg">

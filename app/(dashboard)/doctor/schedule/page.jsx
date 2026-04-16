@@ -1,7 +1,9 @@
+// app/(dashboard)/doctor/schedule/page.jsx
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -114,7 +116,7 @@ const CustomTimePicker = ({ value, onChange, placeholder = "Select time" }) => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white flex items-center justify-between cursor-pointer"
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white flex items-center justify-between cursor-pointer"
       >
         <span className={selectedHour !== null ? 'text-gray-900' : 'text-gray-400'}>
           {getDisplayValue()}
@@ -123,7 +125,7 @@ const CustomTimePicker = ({ value, onChange, placeholder = "Select time" }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-50">
           <div className="flex divide-x divide-gray-200">
             {/* Hours Column */}
             <div className="flex-1">
@@ -190,7 +192,7 @@ const isValidTime = (time) => {
 }
 
 export default function DoctorSchedulePage() {
-  const { data: session } = useSession()
+  const { user } = useAuth()  // 🔥 useAuth ব্যবহার করুন
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [schedule, setSchedule] = useState([])
@@ -209,8 +211,11 @@ export default function DoctorSchedulePage() {
   const fetchSchedule = async () => {
     try {
       const response = await doctorAPI.getProfile()
-      if (response.data.success) {
+      if (response?.data?.success) {
         const doctorData = response.data.data.doctor
+        setSchedule(doctorData.availableDays || [])
+      } else if (response?.success) {
+        const doctorData = response.data.doctor
         setSchedule(doctorData.availableDays || [])
       }
     } catch (error) {
@@ -350,7 +355,7 @@ export default function DoctorSchedulePage() {
       console.log('Saving schedule:', JSON.stringify(cleanSchedule, null, 2))
       
       const response = await doctorAPI.updateSchedule({ availableDays: cleanSchedule })
-      if (response.data.success) {
+      if (response?.data?.success || response?.success) {
         showToast.success('Schedule saved successfully')
         await fetchSchedule()
       }
@@ -398,7 +403,7 @@ export default function DoctorSchedulePage() {
         <div className="flex gap-3">
           <Link
             href="/doctor/schedule/view"
-            className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-all flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all flex items-center gap-2 cursor-pointer"
           >
             <Calendar className="w-4 h-4" />
             View Schedule
@@ -437,7 +442,7 @@ export default function DoctorSchedulePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
               className={`bg-white rounded-xl border ${
-                isAvailable ? 'border-green-200 shadow-sm' : 'border-gray-200'
+                isAvailable ? 'border-green-200 shadow-sm' : 'border-gray-300'
               }`}
             >
               <div className={`p-4 border-b border-gray-200 flex items-center justify-between ${
@@ -496,7 +501,7 @@ export default function DoctorSchedulePage() {
                       const slotTypeColor = SLOT_TYPES.find(t => t.value === slot.type)?.color || 'bg-gray-100 text-gray-600'
                       
                       return (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-300">
                           <div className="flex items-center gap-3">
                             <div className={`p-2 rounded-lg ${slotTypeColor}`}>
                               <SlotIcon className="w-4 h-4" />
@@ -559,7 +564,7 @@ export default function DoctorSchedulePage() {
                               className={`flex-1 p-2 rounded-lg border transition-all cursor-pointer ${
                                 slotForm.type === type.value
                                   ? `${type.color} border-green-500 ring-1 ring-green-500`
-                                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
                               }`}
                             >
                               <Icon className="w-4 h-4 mx-auto mb-1" />
@@ -578,7 +583,7 @@ export default function DoctorSchedulePage() {
                             if (newVal < 1) newVal = 1
                             setSlotForm({ ...slotForm, maxPatients: newVal })
                           }}
-                          className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
+                          className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
                         >
                           <ChevronDown className="w-4 h-4" />
                         </button>
@@ -591,7 +596,7 @@ export default function DoctorSchedulePage() {
                             if (newVal > 10) newVal = 10
                             setSlotForm({ ...slotForm, maxPatients: newVal })
                           }}
-                          className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
+                          className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
                         >
                           <ChevronUp className="w-4 h-4" />
                         </button>
@@ -608,7 +613,7 @@ export default function DoctorSchedulePage() {
                     </button>
                     <button
                       onClick={() => setSelectedDay(null)}
-                      className="px-3 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-100 transition-all cursor-pointer"
+                      className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-100 transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
