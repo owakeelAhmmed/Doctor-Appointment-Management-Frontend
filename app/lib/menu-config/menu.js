@@ -155,6 +155,13 @@ export const menuConfig = {
         permissions: ['doctor']
       },
       {
+        name: 'Complete Profile',
+        href: '/doctor/complete-profile',
+        icon: User,
+        badge: null,
+        permissions: ['doctor']
+      }, 
+      {
         name: 'Profile',
         href: '/doctor/profile',
         icon: User,

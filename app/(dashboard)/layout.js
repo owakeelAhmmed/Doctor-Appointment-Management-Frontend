@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -12,79 +12,107 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  ChevronRight,
-  X
+  LayoutDashboard,
+  Calendar,
+  Stethoscope,
+  FileText,
+  Heart,
+  Users,
+  Clock,
+  DollarSign,
+  Shield,
+  Video,
+  MessageSquare,
+  Star,
+  CreditCard,
+  TrendingUp
 } from 'lucide-react'
 import { showToast } from '@/app/lib/utils/toast'
-import { menuConfig } from '../lib/menu-config/menu'
+
+// Menu Configuration
+const getMenuConfig = (role) => {
+  const commonItems = [
+    { name: 'Dashboard', href: `/${role}`, icon: LayoutDashboard },
+    { name: 'Appointments', href: `/${role}/appointments`, icon: Calendar },
+  ]
+
+  if (role === 'patient') {
+    return {
+      main: [
+        ...commonItems,
+        { name: 'Find Doctors', href: '/patient/doctors', icon: Stethoscope },
+        { name: 'Prescriptions', href: '/patient/prescriptions', icon: FileText },
+        { name: 'Favorites', href: '/patient/favorites', icon: Heart },
+        { name: 'Profile', href: '/patient/profile', icon: User },
+      ]
+    }
+  }
+
+  if (role === 'doctor') {
+    return {
+      main: [
+        ...commonItems,
+        { name: 'My Patients', href: '/doctor/patients', icon: Users },
+        { name: 'Schedule', href: '/doctor/schedule', icon: Clock },
+        { name: 'Earnings', href: '/doctor/earnings', icon: DollarSign },
+        // { name: 'Reviews', href: '/doctor/reviews', icon: Star },
+        { name: 'Complete Profile', href: '/doctor/complete-profile', icon: Shield },
+        { name: 'Profile', href: '/doctor/profile', icon: User },
+      ]
+    }
+  }
+
+  if (role === 'admin' || role === 'superadmin') {
+    return {
+      main: [
+        { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+        { name: 'Users', href: '/admin/users', icon: Users },
+        { name: 'Doctor Verification', href: '/admin/doctors/verification', icon: Shield },
+        { name: 'Appointments', href: '/admin/appointments', icon: Calendar },
+        { name: 'Payments', href: '/admin/payments', icon: CreditCard },
+        { name: 'Reports', href: '/admin/reports', icon: TrendingUp },
+        { name: 'Settings', href: '/admin/settings', icon: Settings },
+      ]
+    }
+  }
+
+  return { main: [] }
+}
 
 export default function DashboardLayout({ children }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { data: session, status } = useSession()
+  const { user, isAuthenticated, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
-  const [openSubmenu, setOpenSubmenu] = useState(null)
 
-  const isLoading = status === 'loading'
-  const user = session?.user
-  const isAuthenticated = !!session?.user
+  const isLoading = loading
   const userRole = user?.role
 
-  const roleMenu = userRole === 'patient' ? menuConfig.patient.main :
-                   userRole === 'doctor' ? menuConfig.doctor.main :
-                   userRole === 'admin' || userRole === 'superadmin' ? menuConfig.admin.main : []
-  
-  const secondaryMenu = userRole === 'patient' ? menuConfig.patient.secondary :
-                        userRole === 'doctor' ? menuConfig.doctor.secondary :
-                        userRole === 'admin' || userRole === 'superadmin' ? menuConfig.admin.secondary : []
+  const menuConfig = getMenuConfig(userRole)
 
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
         router.push('/login')
-      } else if (userRole === 'patient') {
-        // patient allowed
-      } else if (userRole === 'doctor') {
-        // doctor allowed
-      } else if (userRole === 'admin' || userRole === 'superadmin') {
-        // admin allowed
-      } else {
-        router.push('/')
-        showToast.error('Access denied')
       }
     }
-  }, [isLoading, isAuthenticated, userRole, router])
+  }, [isLoading, isAuthenticated, router])
 
   const handleLogout = async () => {
-    try {
-      const { signOut } = await import('next-auth/react')
-      await signOut({ redirect: false })
-      showToast.success('Logged out successfully')
-      router.push('/login')
-    } catch (error) {
-      showToast.error('Error logging out')
-    }
-  }
-
-  const toggleSubmenu = (name) => {
-    setOpenSubmenu(openSubmenu === name ? null : name)
+    await logout()
   }
 
   const isActive = (href) => {
-    if (href === '/patient' || href === '/doctor' || href === '/admin') {
+    if (href === `/${userRole}`) {
       return pathname === href
     }
     return pathname.startsWith(href)
   }
 
   const getPageTitle = () => {
-    for (const item of roleMenu) {
+    for (const item of menuConfig.main) {
       if (isActive(item.href)) return item.name
-      if (item.submenu) {
-        const subItem = item.submenu.find(sub => isActive(sub.href))
-        if (subItem) return subItem.name
-      }
     }
     return 'Dashboard'
   }
@@ -92,7 +120,7 @@ export default function DashboardLayout({ children }) {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-600 border-t-transparent"></div>
       </div>
     )
   }
@@ -102,38 +130,34 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
-
-      {/* Sidebar */}
+    <div className="h-screen bg-gray-50 flex flex-col lg:flex-row overflow-hidden">
+      {/* Sidebar - Static on Desktop, Fixed on Mobile */}
       <aside
-        className={`fixed top-0 left-0 z-40 w-72 h-full bg-white shadow-lg transform transition-transform duration-300 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`
+          lg:relative lg:translate-x-0 lg:w-64 lg:flex-shrink-0 lg:block
+          fixed top-0 left-0 z-50 w-64 h-full bg-white shadow-lg
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
       >
         {/* Logo */}
-        <div className="p-5 border-b">
-          <h1 className="text-xl font-bold text-primary-600">
-            {userRole === 'patient' ? 'Patient Panel' : 
-             userRole === 'doctor' ? 'Doctor Panel' : 'Admin Panel'}
-          </h1>
-          <p className="text-xs text-gray-500">Doctor Appointment System</p>
+        <div className="p-5 border-b border-gray-200">
+          <Link href="/">
+            <h1 className="text-lg font-bold text-green-600">Doccure</h1>
+          <p className="text-xs text-gray-500 mt-0.5 capitalize">{userRole} Panel</p>
+          </Link>
         </div>
 
         {/* User Info */}
-        <div className="p-4 border-b bg-gray-50">
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-primary-600" />
+            <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
+              <User className="w-4 h-4 text-green-600" />
             </div>
-            <div>
-              <p className="text-sm font-medium">{user?.name || user?.fullName}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.name || user?.fullName}
+              </p>
               <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
             </div>
           </div>
@@ -141,168 +165,80 @@ export default function DashboardLayout({ children }) {
 
         {/* Navigation */}
         <nav className="flex-1 py-4 overflow-y-auto">
-          {roleMenu.map((item) => {
-            const Icon = item.icon
+          {menuConfig.main.map((item) => {
             const active = isActive(item.href)
-            
-            if (item.submenu) {
-              return (
-                <div key={item.name}>
-                  <button
-                    onClick={() => toggleSubmenu(item.name)}
-                    className={`w-full flex items-center justify-between px-4 py-3 mx-2 rounded-lg transition-colors ${
-                      active || openSubmenu === item.name
-                        ? 'bg-primary-50 text-primary-600'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-5 h-5" />
-                      <span>{item.name}</span>
-                    </div>
-                    <ChevronRight
-                      className={`w-4 h-4 transition-transform ${
-                        openSubmenu === item.name ? 'rotate-90' : ''
-                      }`}
-                    />
-                  </button>
-                  
-                  {openSubmenu === item.name && (
-                    <div className="ml-11 mt-1 space-y-1">
-                      {item.submenu.map((sub) => (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`block px-3 py-2 text-sm rounded-lg transition-colors ${
-                            isActive(sub.href)
-                              ? 'text-primary-600 bg-primary-50'
-                              : 'text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {sub.name}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            }
+            const Icon = item.icon
             
             return (
               <Link
                 key={item.name}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors ${
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all cursor-pointer ${
                   active
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    ? 'bg-green-50 text-green-600 border-l-3 border-green-600'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span>{item.name}</span>
-                {item.badge && (
-                  <span className="ml-auto px-2 py-0.5 text-xs rounded-full bg-primary-500 text-white">
-                    {item.badge}
-                  </span>
-                )}
+                <Icon className="w-4 h-4" />
+                <span className="text-sm">{item.name}</span>
               </Link>
             )
           })}
-
-          {/* Secondary Menu */}
-          {secondaryMenu.length > 0 && (
-            <div className="mt-6 pt-4 border-t">
-              {secondaryMenu.map((item) => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 mx-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.name}</span>
-                    {item.badge && (
-                      <span className="ml-auto px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
-          )}
         </nav>
 
-        {/* Footer Menu */}
-        <div className="p-4 border-t">
-          {menuConfig.common.bottom.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className="flex items-center gap-3 px-4 py-2 mb-1 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.name}</span>
-              </Link>
-            )
-          })}
-          
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-200">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-2 w-full mt-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 w-full border border-gray-200 rounded-lg text-red-600 hover:bg-red-50 transition-all cursor-pointer"
           >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
+            <LogOut className="w-4 h-4" />
+            <span className="text-sm">Logout</span>
           </button>
         </div>
       </aside>
 
-      {/* Overlay (Mobile) */}
+      {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main Content */}
-      <main className="lg:ml-72 min-h-screen">
-        {/* Header */}
-        <header className="bg-white border-b sticky top-0 z-20">
+      {/* Main Content - Full height with flex column */}
+      <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+        {/* Header - Fixed height, no grow */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center justify-between px-4 py-3 lg:px-6">
             <div className="flex items-center gap-3">
+              {/* Mobile Menu Button */}
               <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-all"
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="w-5 h-5 text-gray-600" />
               </button>
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-base font-semibold text-gray-800">
                 {getPageTitle()}
               </h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {/* Notifications */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg relative">
+              <button className="p-2 hover:bg-gray-100 rounded-lg relative cursor-pointer transition-all">
                 <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 rounded-full"></span>
               </button>
 
               {/* Profile Menu */}
               <div className="relative">
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-lg"
+                  className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-lg cursor-pointer transition-all"
                 >
-                  <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                  <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
                     {user?.name?.charAt(0) || user?.fullName?.charAt(0) || 'U'}
                   </div>
                   <div className="hidden sm:block text-left">
@@ -321,33 +257,33 @@ export default function DashboardLayout({ children }) {
                       className="fixed inset-0 z-40"
                       onClick={() => setIsProfileMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-50">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
                       <Link
                         href={`/${userRole}/profile`}
-                        className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-all"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <User className="w-4 h-4" />
-                        <span className="text-sm">Profile</span>
+                        <span>Profile</span>
                       </Link>
                       <Link
                         href={`/${userRole}/settings`}
-                        className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-gray-50"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-all"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <Settings className="w-4 h-4" />
-                        <span className="text-sm">Settings</span>
+                        <span>Settings</span>
                       </Link>
-                      <hr />
+                      <hr className="border-gray-200" />
                       <button
                         onClick={() => {
                           setIsProfileMenuOpen(false)
                           handleLogout()
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-all"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span className="text-sm">Logout</span>
+                        <span>Logout</span>
                       </button>
                     </div>
                   </>
@@ -357,16 +293,17 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        {/* Page Content */}
-        <div className="p-4 lg:p-6">
-          <motion.div
-            key={pathname}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {children}
-          </motion.div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 lg:p-6">
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {children}
+            </motion.div>
+          </div>
         </div>
       </main>
     </div>

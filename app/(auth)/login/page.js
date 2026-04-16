@@ -1,276 +1,209 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Fingerprint } from 'lucide-react'
-import { signIn } from 'next-auth/react'
-import { motion } from 'framer-motion'
-import { FaGithub, FaGoogle } from "react-icons/fa"
-import Input from '@/app/components/ui/Input'
+import { Mail, Lock, Eye, EyeOff, Fingerprint, AlertCircle, Stethoscope } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Button from '@/app/components/ui/Button'
 import AnimatedBackground from '@/app/components/ui/AnimatedBackground'
-import { showToast } from '@/app/lib/utils/toast'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectUrl = searchParams.get('redirect')
+  const prefilledEmail = searchParams.get('email')
+  
+  const { login, isLoading: authLoading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
-  
-  const { register, handleSubmit, formState: { errors } } = useForm()
+
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm({
+    defaultValues: {
+      email: prefilledEmail || '',
+      password: '',
+    }
+  })
+
+  useEffect(() => {
+    if (prefilledEmail) {
+      setValue('email', prefilledEmail)
+    }
+  }, [prefilledEmail, setValue])
 
   const onSubmit = async (data) => {
     setIsLoading(true)
+
+    const result = await login(data.email, data.password)
     
-    try {
-      const result = await signIn('credentials', {
-        email: data.email,
-        password: data.password,
-        redirect: false,
-        callbackUrl: '/'
-      })
+    if (result.success) {
+      const user = result.user
+      
+      // Handle based on user role
+      if (user.role === 'doctor') {
+        const verificationStatus = user.verificationStatus || 'pending'
 
-      if (result?.error) {
-        showToast.error('Invalid email or password')
-      } else {
-        showToast.success('Login successful! Redirecting...')
-        
-        // Get session after successful login
-        const sessionRes = await fetch('/api/auth/session')
-        const session = await sessionRes.json()
-        
-        setTimeout(() => {
-          if (session?.user?.role === 'patient') {
-            router.push('/patient')
-          } else if (session?.user?.role === 'doctor') {
-            router.push('/doctor')
-          } else if (session?.user?.role === 'admin' || session?.user?.role === 'superadmin') {
-            router.push('/admin')
-          } else {
-            router.push('/dashboard')
-          }
-        }, 1500)
+        if (verificationStatus === 'pending') {
+          router.push('/doctor/complete-profile')
+        } else if (verificationStatus === 'profile_submitted') {
+          router.push('/doctor/documents')
+        } else {
+          router.push('/doctor')
+        }
       }
-    } catch (error) {
-      showToast.error('Something went wrong. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2
+      else if (user.role === 'admin' || user.role === 'superadmin') {
+        router.push('/admin')
+      }
+      else {
+        router.push('/patient')
       }
     }
-  }
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: { type: 'spring', stiffness: 300, damping: 24 }
-    }
-  }
-
-  const floatingShapeVariants = {
-    animate: (i) => ({
-      x: [0, 30, 0, -30, 0],
-      y: [0, -30, 0, 30, 0],
-      rotate: [0, 90, 180, 270, 360],
-      transition: {
-        duration: 20 + i * 2,
-        repeat: Infinity,
-        ease: "linear"
-      }
-    })
+    
+    setIsLoading(false)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 overflow-hidden relative">
-      
-      {/* Animated Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            custom={i}
-            variants={floatingShapeVariants}
-            animate="animate"
-            className="absolute rounded-full mix-blend-multiply filter blur-xl opacity-20"
-            style={{
-              width: `${150 + i * 50}px`,
-              height: `${150 + i * 50}px`,
-              left: `${10 + i * 15}%`,
-              top: `${5 + i * 20}%`,
-              background: `radial-gradient(circle, ${
-                ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9'][i]
-              } 0%, transparent 70%)`,
-            }}
-          />
-        ))}
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 relative py-8">
+      <AnimatedBackground />
 
-      {/* Main content */}
       <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md px-4"
       >
-
-        {/* Logo */}
-        <motion.div variants={itemVariants} className="text-center mb-8">
+        {/* Logo/Brand Section */}
+        <div className="text-center mb-8">
           <motion.div
             whileHover={{ scale: 1.1, rotate: 360 }}
             transition={{ type: 'spring', stiffness: 300, damping: 10 }}
-            className="inline-block p-4 bg-white/10 backdrop-blur-lg rounded-full mb-4"
+            className="inline-block p-3 bg-white/10 backdrop-blur-lg rounded-full mb-3 cursor-pointer"
           >
-            <Fingerprint className="w-12 h-12 text-white" />
+            <Fingerprint className="w-10 h-10 text-white" />
           </motion.div>
-          <motion.h1 className="text-4xl font-bold text-white mb-2">
-            Welcome Back
-          </motion.h1>
-          <motion.p className="text-white/70">
-            Sign in to continue to your dashboard
-          </motion.p>
-        </motion.div>
+
+          <h1 className="text-3xl font-bold text-white mb-1">Welcome Back</h1>
+          <p className="text-white/70 text-sm">Sign in to your account</p>
+        </div>
 
         {/* Login Form */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-white/20"
-        >
-          <form autoComplete="off" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            
-            {/* Email Field */}
-            <motion.div variants={itemVariants}>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border border-white/20">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-1">
                 Email Address
               </label>
-              <div className="relative group">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50 group-focus-within:text-pink-400 transition-colors" />
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
                 <input
                   type="email"
-                  placeholder="Enter your email"
-                  {...register('email', { 
+                  placeholder="you@example.com"
+                  {...register('email', {
                     required: 'Email is required',
                     pattern: {
                       value: /^\S+@\S+\.\S+$/,
                       message: 'Invalid email address'
                     }
                   })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all text-sm"
                 />
               </div>
               {errors.email && (
-                <p className="mt-1 text-sm text-pink-300">
+                <p className="mt-1 text-xs text-pink-300 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
                   {errors.email.message}
                 </p>
               )}
-            </motion.div>
+            </div>
 
-            {/* Password Field */}
-            <motion.div variants={itemVariants}>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-1">
                 Password
               </label>
-              <div className="relative group">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50 group-focus-within:text-pink-400 transition-colors" />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  {...register('password', { 
-                    required: 'Password is required'
-                  })}
-                  className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                  placeholder="••••••••"
+                  {...register('password', { required: 'Password is required' })}
+                  className="w-full pl-9 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-pink-300">
+                <p className="mt-1 text-xs text-pink-300 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
                   {errors.password.message}
                 </p>
               )}
-            </motion.div>
+            </div>
 
-            {/* Remember Me & Forgot Password */}
-            <motion.div 
-              variants={itemVariants}
-              className="flex items-center justify-between"
-            >
-              <label className="flex items-center space-x-2 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 bg-white/5 border-white/20 rounded text-pink-500 focus:ring-pink-500 focus:ring-offset-0"
-                />
-                <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors">
-                  Remember me
-                </span>
-              </label>
-              
-              <Link 
+            {/* Forgot Password Link */}
+            <div className="text-right">
+              <Link
                 href="/forgot-password"
-                className="text-sm text-white/70 hover:text-white transition-colors"
+                className="text-sm text-pink-400 hover:text-pink-300 transition-colors"
               >
-                Forgot password?
+                Forgot Password?
               </Link>
-            </motion.div>
+            </div>
 
             {/* Submit Button */}
-            <motion.div
-              variants={itemVariants}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              isLoading={isLoading || authLoading}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-2.5 rounded-xl"
             >
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                isLoading={isLoading}
-                className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 border-0 text-white py-3 rounded-xl shadow-lg shadow-purple-500/25"
-              >
-                {!isLoading && (
-                  <span className="flex items-center justify-center gap-2">
-                    Sign In
-                    <ArrowRight className="w-5 h-5" />
-                  </span>
-                )}
-              </Button>
-            </motion.div>
+              Sign In
+            </Button>
 
-            {/* Sign Up Link */}
-            <motion.p 
-              variants={itemVariants}
-              className="text-center text-white/70 text-sm"
-            >
+            {/* Register Link */}
+            <p className="text-center text-white/70 text-sm">
               Don't have an account?{' '}
-              <Link 
-                href="/register" 
+              <Link
+                href="/register"
                 className="text-pink-400 hover:text-pink-300 font-medium transition-colors"
               >
-                Create account
+                Create Account
               </Link>
-            </motion.p>
+            </p>
           </form>
-        </motion.div>
+        </div>
+
+        {/* Info Box for Doctors */}
+        <div className="mt-6 p-3 bg-white/5 rounded-xl border border-white/10">
+          <div className="flex items-center gap-2 text-xs text-white/50">
+            <Stethoscope className="w-3 h-3" />
+            <span>Doctor Registration Process:</span>
+          </div>
+          <p className="text-xs text-white/40 mt-1">
+            1. Register → 2. Verify Email → 3. Complete Profile → 4. Upload Documents → 5. Admin Verification → 6. Start Practicing
+          </p>
+        </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

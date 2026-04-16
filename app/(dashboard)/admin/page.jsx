@@ -1,3 +1,5 @@
+// app/admin/page.jsx (এই ফাইলটি নিশ্চিত করুন যে সঠিক লোকেশনে আছে)
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -41,13 +43,19 @@ export default function AdminDashboard() {
       if (response && response.success) {
         setDashboardData(response.data)
       } else {
-        // যদি API না থাকে, ডামি ডাটা দেখান
+        // Dummy data for testing
         setDashboardData({
           users: { total: 1248, patients: 892, doctors: 324, admins: 32, newToday: 12, pendingVerification: 8 },
           appointments: { total: 2456, today: 18, completed: 1892, cancelled: 234, completionRate: 77 },
           revenue: { total: 1250000, today: 45000, thisMonth: 328000, pendingWithdrawals: 125000 },
-          recentAppointments: [],
-          recentUsers: []
+          recentAppointments: [
+            { _id: '1', doctor: { user: { fullName: 'Dr. John Smith' } }, patient: { user: { fullName: 'John Doe' } }, appointmentDate: new Date(), startTime: '10:00', status: 'confirmed' },
+            { _id: '2', doctor: { user: { fullName: 'Dr. Sarah Ahmed' } }, patient: { user: { fullName: 'Jane Smith' } }, appointmentDate: new Date(), startTime: '11:00', status: 'pending' }
+          ],
+          recentUsers: [
+            { _id: '1', fullName: 'John Doe', email: 'john@example.com', role: 'patient', createdAt: new Date() },
+            { _id: '2', fullName: 'Dr. Sarah Ahmed', email: 'sarah@example.com', role: 'doctor', createdAt: new Date() }
+          ]
         })
       }
     } catch (error) {
@@ -127,7 +135,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back, {session?.user?.name || 'Admin'}!</p>
+        <p className="text-gray-500 mt-1">Welcome back, {session?.user?.name || session?.user?.fullName || 'Admin'}!</p>
       </div>
 
       {/* Stats Cards */}
