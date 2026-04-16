@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -81,13 +81,11 @@ const getMenuConfig = (role) => {
 export default function DashboardLayout({ children }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { data: session, status } = useSession()
+  const { user, isAuthenticated, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
 
-  const isLoading = status === 'loading'
-  const user = session?.user
-  const isAuthenticated = !!session?.user
+  const isLoading = loading
   const userRole = user?.role
 
   const menuConfig = getMenuConfig(userRole)
@@ -101,14 +99,7 @@ export default function DashboardLayout({ children }) {
   }, [isLoading, isAuthenticated, router])
 
   const handleLogout = async () => {
-    try {
-      const { signOut } = await import('next-auth/react')
-      await signOut({ redirect: false })
-      showToast.success('Logged out successfully')
-      router.push('/login')
-    } catch (error) {
-      showToast.error('Error logging out')
-    }
+    await logout()
   }
 
   const isActive = (href) => {
@@ -137,7 +128,6 @@ export default function DashboardLayout({ children }) {
     return null
   }
 
-  // ✅ FIXED: h-screen instead of min-h-screen for exact viewport height
   return (
     <div className="h-screen bg-gray-50 flex flex-col lg:flex-row overflow-hidden">
       {/* Sidebar - Static on Desktop, Fixed on Mobile */}
@@ -287,10 +277,10 @@ export default function DashboardLayout({ children }) {
                           setIsProfileMenuOpen(false)
                           handleLogout()
                         }}
-                        className=" w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-all"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-all"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span >Logout</span>
+                        <span>Logout</span>
                       </button>
                     </div>
                   </>

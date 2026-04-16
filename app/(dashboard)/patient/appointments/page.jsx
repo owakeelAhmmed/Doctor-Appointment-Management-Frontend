@@ -8,13 +8,12 @@ import {
   Calendar,
   Clock,
   User,
-  Filter,
   Search,
-  ChevronDown,
   Video,
   Phone,
   MapPin,
-  Plus
+  Plus,
+  Stethoscope
 } from 'lucide-react'
 import { patientAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
@@ -57,13 +56,10 @@ export default function AppointmentsPage() {
 
       console.log('Full response:', response)
 
-      // ✅ Correct response handling for your backend
       let appointmentsData = []
       let paginationData = { total: 0, pages: 1, page: 1 }
 
-      // Your backend sends: { success: true, data: [...], pagination: {...} }
       if (response?.data?.success) {
-        // ✅ appointments are directly in response.data.data (not data.data.appointments)
         appointmentsData = response.data.data || []
         paginationData = response.data.pagination || paginationData
       }
@@ -88,11 +84,11 @@ export default function AppointmentsPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-600'
-      case 'pending': return 'bg-yellow-100 text-yellow-600'
-      case 'completed': return 'bg-blue-100 text-blue-600'
-      case 'cancelled': return 'bg-red-100 text-red-600'
-      default: return 'bg-gray-100 text-gray-600'
+      case 'confirmed': return 'bg-green-100 text-green-700'
+      case 'pending': return 'bg-yellow-100 text-yellow-700'
+      case 'completed': return 'bg-blue-100 text-blue-700'
+      case 'cancelled': return 'bg-red-100 text-red-700'
+      default: return 'bg-gray-100 text-gray-700'
     }
   }
 
@@ -203,81 +199,100 @@ export default function AppointmentsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {appointments.map((appointment, index) => (
-            <motion.div
-              key={appointment._id || index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-all"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                    <User className="w-8 h-8 text-green-600" />
-                  </div>
-
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Dr. {appointment.doctor?.user?.fullName || 'Doctor'}
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-2">
-                      {appointment.doctor?.specialization || 'General Medicine'}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      <span className="flex items-center gap-1 text-gray-600">
-                        <Calendar className="w-4 h-4" />
-                        {formatDate(appointment.appointmentDate)}
-                      </span>
-                      <span className="flex items-center gap-1 text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        {appointment.startTime} - {appointment.endTime}
-                      </span>
-                      <span className="flex items-center gap-1 text-gray-600">
-                        {getTypeIcon(appointment.type)}
-                        {getTypeText(appointment.type)}
-                      </span>
-                      <span className="flex items-center gap-1 text-gray-600">
-                        Fee: ৳{appointment.fee}
-                      </span>
+          {appointments.map((appointment, index) => {
+            // 🔥 ডাক্তারের তথ্য doctorInfo থেকে নিন
+            const doctorName = appointment.doctorInfo?.name || appointment.doctor?.user?.fullName || 'Doctor'
+            const doctorSpecialization = appointment.doctorInfo?.specialization || appointment.doctor?.specialization || 'General Medicine'
+            const doctorProfileImage = appointment.doctorInfo?.profileImage || appointment.doctor?.user?.profileImage?.url
+            
+            // পেশেন্টের তথ্য patientInfo থেকে নিন
+            const patientName = appointment.patientInfo?.name || appointment.patient?.user?.fullName || 'Patient'
+            
+            return (
+              <motion.div
+                key={appointment._id || index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-all"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    {/* Profile Image */}
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {doctorProfileImage ? (
+                        <img 
+                          src={doctorProfileImage} 
+                          alt={doctorName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Stethoscope className="w-8 h-8 text-green-600" />
+                      )}
                     </div>
 
-                    {appointment.symptoms && (
-                      <p className="mt-2 text-sm text-gray-600">
-                        <span className="font-medium">Symptoms:</span> {appointment.symptoms}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Dr. {doctorName}
+                      </h3>
+                      <p className="text-sm text-green-600 font-medium mb-2">
+                        {doctorSpecialization}
                       </p>
-                    )}
 
-                    {appointment.meetingLink && appointment.type === 'video' && (
-                      <a
-                        href={appointment.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700"
-                      >
-                        <Video className="w-4 h-4" />
-                        Join Video Call
-                      </a>
-                    )}
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <span className="flex items-center gap-1 text-gray-600">
+                          <Calendar className="w-4 h-4" />
+                          {formatDate(appointment.appointmentDate)}
+                        </span>
+                        <span className="flex items-center gap-1 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          {appointment.startTime} - {appointment.endTime}
+                        </span>
+                        <span className="flex items-center gap-1 text-gray-600">
+                          {getTypeIcon(appointment.type)}
+                          {getTypeText(appointment.type)}
+                        </span>
+                        <span className="flex items-center gap-1 text-gray-600">
+                          Fee: ৳{appointment.fee}
+                        </span>
+                      </div>
+
+                      {appointment.symptoms && (
+                        <p className="mt-2 text-sm text-gray-600">
+                          <span className="font-medium">Symptoms:</span> {appointment.symptoms}
+                        </p>
+                      )}
+
+                      {appointment.meetingLink && appointment.type === 'video' && (
+                        <a
+                          href={appointment.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700"
+                        >
+                          <Video className="w-4 h-4" />
+                          Join Video Call
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
+                      {getStatusText(appointment.status)}
+                    </span>
+
+                    <Link
+                      href={`/patient/appointments/${appointment._id}`}
+                      className="px-4 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    >
+                      View Details
+                    </Link>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-                    {getStatusText(appointment.status)}
-                  </span>
-
-                  <Link
-                    href={`/patient/appointments/${appointment._id}`}
-                    className="px-4 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                  >
-                    View Details
-                  </Link>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            )
+          })}
 
           {/* Pagination */}
           {pagination.pages > 1 && (

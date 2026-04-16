@@ -22,7 +22,7 @@ import {
   Clock,
   ChevronDown
 } from 'lucide-react'
-import { useSession, signOut } from 'next-auth/react'
+import { useAuth } from '@/app/lib/hooks/useAuth'
 import { showToast } from '@/app/lib/utils/toast'
 
 const publicMenu = [
@@ -43,7 +43,7 @@ const contactInfo = [
 export default function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { data: session, status } = useSession()
+  const { user, isAuthenticated, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -51,9 +51,7 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
-  const user = session?.user
   const userRole = user?.role
-  const isAuthenticated = !!session?.user
 
   useEffect(() => {
     const handleScroll = () => {
@@ -71,9 +69,7 @@ export default function Navbar() {
   }, [pathname])
 
   const handleLogout = async () => {
-    await signOut({ redirect: false })
-    showToast.success('Logged out successfully')
-    router.push('/login')
+    await logout()
   }
 
   const isActive = (href) => {
