@@ -1,5 +1,3 @@
-// app/admin/page.jsx (এই ফাইলটি নিশ্চিত করুন যে সঠিক লোকেশনে আছে)
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -17,7 +15,6 @@ import {
   Eye
 } from 'lucide-react'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
 import { adminAPI } from '@/app/lib/api/client'
 import { showToast } from '@/app/lib/utils/toast'
 
